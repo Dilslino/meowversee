@@ -133,18 +133,8 @@ export function getDefaultModelForMode(mode: StudioMode): ModelId {
   return getMagnificModelsForMode(mode)[0].id;
 }
 
-export function getStoredApiKey(): string {
-  return window.localStorage.getItem('meowversee:magnific-api-key') ?? '';
-}
-
-export function storeApiKey(value: string): void {
-  const key = value.trim();
-  if (key.length === 0) {
-    window.localStorage.removeItem('meowversee:magnific-api-key');
-    return;
-  }
-
-  window.localStorage.setItem('meowversee:magnific-api-key', key);
+export function isUsingServerApiKey(): boolean {
+  return true;
 }
 
 export function getCachedHistory(now = Date.now()): CachedHistoryItem[] {
@@ -287,7 +277,6 @@ export function formatUploadSelection(count = 0): string {
 }
 
 export async function generateVideo(
-  apiKey: string,
   model: ModelId,
   payload: GeneratePayload,
   now = Date.now(),
@@ -300,7 +289,7 @@ export async function generateVideo(
   if (pending) return { ok: false, message: PENDING_GENERATE_MESSAGE };
 
   writePendingGenerate({ key: buildGenerateKey(model, body), createdAt: now, expiresAt: now + PENDING_GENERATE_TTL_MS });
-  const result = await requestTask(endpoints[model].create, apiKey, {
+  const result = await requestTask(endpoints[model].create, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -310,29 +299,23 @@ export async function generateVideo(
 }
 
 export async function getTaskStatus(
-  apiKey: string,
   model: ModelId,
   taskId: string,
 ): Promise<ApiResult<MagnificTask>> {
   const id = taskId.trim();
   if (!id) return { ok: false, message: 'Masukkan task ID terlebih dahulu.' };
-  return requestTask(`${endpoints[model].status}/${encodeURIComponent(id)}`, apiKey, { method: 'GET' });
+  return requestTask(`${endpoints[model].status}/${encodeURIComponent(id)}`, { method: 'GET' });
 }
 
 async function requestTask(
   path: string,
-  apiKey: string,
   init: RequestInit,
 ): Promise<ApiResult<MagnificTask>> {
-  const key = apiKey.trim();
-  if (!key) return { ok: false, message: 'Masukkan API key Magnific terlebih dahulu.' };
-
   try {
     const response = await fetch(`${BASE_URL}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        'x-magnific-api-key': key,
         ...init.headers,
       },
     });

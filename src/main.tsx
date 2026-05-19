@@ -16,10 +16,9 @@ import {
   getAutoPollDelay,
   getCachedHistory,
   getMagnificModelsForMode,
-  getStoredApiKey,
   MAGNIFIC_MODE_COPY,
   getTaskStatus,
-  storeApiKey,
+  isUsingServerApiKey,
   updateCachedHistoryTask,
 } from './api';
 
@@ -29,7 +28,7 @@ const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
 
 export default function App() {
-  const [apiKey, setApiKey] = useState('');
+  const [serverApiReady] = useState(isUsingServerApiKey());
   const [mode, setMode] = useState<StudioMode>('video');
   const [model, setModel] = useState<ModelId>(getDefaultModelForMode('video'));
   const [prompt, setPrompt] = useState('A tiny white cat astronaut drifts through a pastel pink nebula, cinematic soft light');
@@ -59,7 +58,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    setApiKey(getStoredApiKey());
     setHistory(getCachedHistory());
   }, []);
 
@@ -69,17 +67,12 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [generationStartedAt, task?.status]);
 
-  const maskedKey = useMemo(() => (apiKey ? `${apiKey.slice(0, 6)}••••${apiKey.slice(-4)}` : 'Belum tersimpan'), [apiKey]);
+  const apiStatusText = useMemo(() => (serverApiReady ? 'API key owner aktif via server' : 'API key server belum aktif'), [serverApiReady]);
   const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0) + (endImageUrl ? 1 : 0);
   const availableModels = getMagnificModelsForMode(mode);
   const selectedModeCopy = MAGNIFIC_MODE_COPY[mode];
 
-  function handleKeySave(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    storeApiKey(apiKey);
-    setApiKey(getStoredApiKey());
-    setMessage(apiKey.trim() ? 'API key tersimpan di cache browser.' : 'API key dihapus dari cache browser.');
-  }
+
 
   async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference' | 'video', files: FileList | null) {
     if (!files?.length) return;
@@ -121,7 +114,7 @@ export default function App() {
       cfgScale,
     };
 
-    const result = await generateVideo(apiKey, model, payload);
+    const result = await generateVideo(model, payload);
     setLoading(false);
 
     if (!result.ok || !result.data) {
@@ -143,7 +136,7 @@ export default function App() {
     for (let attempt = 0; attempt < MAX_AUTO_POLL_ATTEMPTS; attempt += 1) {
       const delay = getAutoPollDelay(attempt);
       if (delay > 0) await wait(delay);
-      const result = await getTaskStatus(apiKey, nextModel, nextTaskId);
+      const result = await getTaskStatus(nextModel, nextTaskId);
       if (!result.ok || !result.data) {
         setMessage(result.message ?? 'Task sudah dibuat, tapi status otomatis belum bisa dibaca. Meowversee akan coba lagi otomatis.');
         continue;
@@ -225,32 +218,12 @@ export default function App() {
 
       <section className="workspace" aria-label="Generator video">
         <aside className="panel key-panel">
-          <div className="section-title"><KeyRound size={20} /> API Key</div>
-          <p className="muted">Key hanya disimpan di localStorage browser ini. Tidak ada server backend di Meowversee.</p>
-          <form onSubmit={handleKeySave} className="stack">
-            <label>
-              API key Magnific
-              <input
-                type="password"
-                value={apiKey}
-                onChange={(event) => setApiKey(event.target.value)}
-                placeholder="mgf_..."
-                autoComplete="off"
-              />
-            </label>
-            <button type="submit" className="secondary-button">Simpan ke cache</button>
-          </form>
-          <div className="cache-note"><CheckCircle2 size={18} /> {maskedKey}</div>
-          <div className="tutorial-card" aria-label="Tutorial ambil API key Magnific">
-            <strong>Cara ambil API key</strong>
-            <ol>
-              <li>Buka <a href="https://www.magnific.com/developers/dashboard/limits" target="_blank" rel="noreferrer">halaman API Magnific</a>.</li>
-              <li>Login ke akun Magnific kamu.</li>
-              <li>Masuk ke bagian developer / limits.</li>
-              <li>Copy API key yang muncul di dashboard.</li>
-              <li>Paste di kolom ini, lalu tekan <b>Simpan ke cache</b>.</li>
-            </ol>
-            <p>Key tersimpan hanya di browser device ini. Kalau ganti HP/browser, paste lagi.</p>
+          <div className="section-title"><KeyRound size={20} /> API server</div>
+          <p className="muted">Kamu tidak perlu masukin API key. Request Magnific lewat server Meowversee dan memakai API key owner dari environment Supabase/Vercel.</p>
+          <div className="cache-note"><CheckCircle2 size={18} /> {apiStatusText}</div>
+          <div className="tutorial-card" aria-label="Info API key Meowversee">
+            <strong>Mode pengguna</strong>
+            <p>Cukup upload asset, pilih fitur/model, lalu generate. API key tidak disimpan di browser pengguna.</p>
           </div>
         </aside>
 

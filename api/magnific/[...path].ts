@@ -57,10 +57,10 @@ export function buildMagnificTargetUrl(segments: string[]): URL {
 
 function buildHeaders(request: VercelRequest): Headers {
   const headers = new Headers();
-  const apiKey = request.headers['x-magnific-api-key'];
+  const apiKey = process.env.MAGNIFIC_API_KEY;
 
   headers.set('content-type', 'application/json');
-  if (typeof apiKey === 'string') headers.set('x-magnific-api-key', apiKey);
+  if (apiKey) headers.set('x-magnific-api-key', apiKey);
 
   return headers;
 }

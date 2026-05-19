@@ -69,9 +69,9 @@ describe('Magnific mode and model catalog', () => {
         return Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }));
       }) as typeof fetch;
 
-      await generateVideo('mgf_test', 'mystic', { prompt: 'pink cat' });
-      await generateVideo('mgf_test', 'image-upscaler-precision', { imageUrl: 'data:image/png;base64,aaaa' });
-      await getTaskStatus('mgf_test', 'flux-2-turbo', 'task-2');
+      await generateVideo('mystic', { prompt: 'pink cat' });
+      await generateVideo('image-upscaler-precision', { imageUrl: 'data:image/png;base64,aaaa' });
+      await getTaskStatus('flux-2-turbo', 'task-2');
 
       expect(requestedUrls).toEqual([
         '/api/magnific/v1/ai/mystic',
@@ -110,7 +110,7 @@ describe('Magnific network failures', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
 
-    const result = await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' });
+    const result = await generateVideo('kling-v3-omni-std', { prompt: 'pink cat' });
 
     expect(result).toEqual({
       ok: false,
@@ -131,7 +131,7 @@ describe('Magnific request routing', () => {
       return Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }));
     }) as typeof fetch;
 
-    await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' });
+    await generateVideo('kling-v3-omni-std', { prompt: 'pink cat' });
 
     expect(requestedUrl).toBe('/api/magnific/v1/ai/video/kling-v3-omni-std');
 
@@ -149,8 +149,8 @@ describe('Generate retry protection', () => {
     try {
       globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
 
-      await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
-      const result = await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_010_000);
+      await generateVideo('kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
+      const result = await generateVideo('kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_010_000);
 
       expect(result).toEqual({
         ok: false,
@@ -166,7 +166,7 @@ describe('Generate retry protection', () => {
     try {
       globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }))) as typeof fetch;
 
-      await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
+      await generateVideo('kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
 
       expect(getPendingGenerate('kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_010_000)).toBeNull();
     } finally {
@@ -187,7 +187,7 @@ describe('Automatic status polling helpers', () => {
         data: { task_id: 'task-1', status: 'COMPLETED', generated: ['https://cdn.example.com/video.mp4'] },
       }), { status: 200 }))) as typeof fetch;
 
-      const result = await getTaskStatus('mgf_test', 'kling-v3-omni-std', 'task-1');
+      const result = await getTaskStatus('kling-v3-omni-std', 'task-1');
 
       expect(result).toEqual({
         ok: true,
