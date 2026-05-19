@@ -15,6 +15,8 @@ import {
   getAutoPollDelay,
   getDefaultModelForMode,
   MAX_DEVICE_UPLOAD_BYTES,
+  MOTION_IMAGE_UPLOAD_BYTES,
+  MOTION_VIDEO_UPLOAD_BYTES,
   getCachedHistory,
   getMagnificModelsForMode,
   MAGNIFIC_MODELS,
@@ -97,8 +99,18 @@ export default function App() {
   async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio', files: FileList | null) {
     if (!files?.length) return;
     const maxFiles = target === 'reference' ? (mode === 'image' ? 3 : 4) : 1;
-    const urls = await Promise.all(Array.from(files).slice(0, maxFiles).map(readFileAsDataUrl));
+    const selectedFiles = Array.from(files).slice(0, maxFiles);
+    const limit = getUploadLimitBytes(target);
+    const oversized = selectedFiles.find((file) => file.size > limit);
+    if (oversized) {
+      setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
+      setMessage(`File ${getUploadLabel(target)} terlalu besar (${formatBytes(oversized.size)}). Batas maksimal ${formatBytes(limit)}.`);
+      return;
+    }
 
+    const urls = await Promise.all(selectedFiles.map(readFileAsDataUrl));
+
+    setMessage('');
     setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
     if (target === 'image') setImageUrl(urls[0]);
     if (target === 'start') setStartImageUrl(urls[0]);
@@ -106,6 +118,28 @@ export default function App() {
     if (target === 'video') setVideoUrl(urls[0]);
     if (target === 'audio') setAudioUrl(urls[0]);
     if (target === 'reference') setReferenceImageUrls(urls.slice(0, maxFiles));
+  }
+
+  function getUploadLimitBytes(target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio'): number {
+    if (mode === 'motion' && target === 'image') return MOTION_IMAGE_UPLOAD_BYTES;
+    if (mode === 'motion' && target === 'video') return MOTION_VIDEO_UPLOAD_BYTES;
+    return MAX_DEVICE_UPLOAD_BYTES;
+  }
+
+  function getUploadLabel(target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio'): string {
+    if (mode === 'motion' && target === 'image') return 'Gambar Referensi';
+    if (mode === 'motion' && target === 'video') return 'Video Referensi';
+    if (target === 'start') return 'Start Image';
+    if (target === 'end') return 'End Image';
+    if (target === 'reference') return 'Reference Images';
+    if (target === 'audio') return 'Audio suara';
+    if (target === 'video') return 'Video';
+    return 'Gambar';
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   function readFileAsDataUrl(file: File): Promise<string> {

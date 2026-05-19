@@ -83,8 +83,8 @@ const PENDING_GENERATE_MESSAGE = 'Generate yang sama baru saja dikirim dan statu
 const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
 const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
 export const MAX_DEVICE_UPLOAD_BYTES = 18 * 1024 * 1024;
-const MOTION_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
-const MOTION_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+export const MOTION_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const MOTION_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 
 export type MagnificModel = {
