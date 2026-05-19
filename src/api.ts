@@ -1,0 +1,206 @@
+export type ModelId = 'omni' | 'motion';
+export type TaskStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+export type GeneratePayload = {
+  prompt?: string;
+  imageUrl?: string;
+  startImageUrl?: string;
+  endImageUrl?: string;
+  videoUrl?: string;
+  aspectRatio?: 'auto' | '16:9' | '9:16' | '1:1';
+  duration?: string;
+  generateAudio?: boolean;
+  characterOrientation?: 'video' | 'image';
+  cfgScale?: number;
+};
+
+export type MagnificTask = {
+  task_id: string;
+  status: TaskStatus;
+  generated?: string[];
+};
+
+export type ApiResult<T> = {
+  ok: boolean;
+  data?: T;
+  message?: string;
+};
+
+const BASE_URL = 'https://api.magnific.com';
+
+const endpoints: Record<ModelId, { create: string; status: string }> = {
+  omni: {
+    create: '/v1/ai/video/kling-v3-omni-std',
+    status: '/v1/ai/video/kling-v3-omni',
+  },
+  motion: {
+    create: '/v1/ai/video/kling-v3-motion-control-std',
+    status: '/v1/ai/video/kling-v3-motion-control-std',
+  },
+};
+
+export function getStoredApiKey(): string {
+  return window.localStorage.getItem('meowversee:magnific-api-key') ?? '';
+}
+
+export function storeApiKey(value: string): void {
+  const key = value.trim();
+  if (key.length === 0) {
+    window.localStorage.removeItem('meowversee:magnific-api-key');
+    return;
+  }
+
+  window.localStorage.setItem('meowversee:magnific-api-key', key);
+}
+
+export function buildRequestBody(model: ModelId, payload: GeneratePayload): Record<string, unknown> {
+  if (model === 'motion') {
+    const body: Record<string, unknown> = {
+      image_url: payload.imageUrl?.trim(),
+      video_url: payload.videoUrl?.trim(),
+    };
+
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.characterOrientation) body.character_orientation = payload.characterOrientation;
+    if (typeof payload.cfgScale === 'number') body.cfg_scale = payload.cfgScale;
+
+    return compact(body);
+  }
+
+  const body: Record<string, unknown> = {};
+  if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+  if (payload.imageUrl?.trim()) body.image_url = payload.imageUrl.trim();
+  if (payload.startImageUrl?.trim()) body.start_image_url = payload.startImageUrl.trim();
+  if (payload.endImageUrl?.trim()) body.end_image_url = payload.endImageUrl.trim();
+  if (payload.aspectRatio) body.aspect_ratio = payload.aspectRatio;
+  if (payload.duration) body.duration = payload.duration;
+  if (typeof payload.generateAudio === 'boolean') body.generate_audio = payload.generateAudio;
+
+  return compact(body);
+}
+
+export function validatePayload(model: ModelId, payload: GeneratePayload): string | null {
+  if (model === 'motion') {
+    if (!payload.imageUrl?.trim()) return 'Kling Motion v3 membutuhkan URL gambar karakter.';
+    if (!payload.videoUrl?.trim()) return 'Kling Motion v3 membutuhkan URL video referensi gerakan.';
+    return null;
+  }
+
+  if (!payload.prompt?.trim() && !payload.imageUrl?.trim() && !payload.startImageUrl?.trim()) {
+    return 'Kling 3 Omni membutuhkan prompt atau URL gambar awal.';
+  }
+
+  return null;
+}
+
+export async function generateVideo(
+  apiKey: string,
+  model: ModelId,
+  payload: GeneratePayload,
+): Promise<ApiResult<MagnificTask>> {
+  const validation = validatePayload(model, payload);
+  if (validation) return { ok: false, message: validation };
+
+  return requestTask(endpoints[model].create, apiKey, {
+    method: 'POST',
+    body: JSON.stringify(buildRequestBody(model, payload)),
+  });
+}
+
+export async function getTaskStatus(
+  apiKey: string,
+  model: ModelId,
+  taskId: string,
+): Promise<ApiResult<MagnificTask>> {
+  const id = taskId.trim();
+  if (!id) return { ok: false, message: 'Masukkan task ID terlebih dahulu.' };
+  return requestTask(`${endpoints[model].status}/${encodeURIComponent(id)}`, apiKey, { method: 'GET' });
+}
+
+async function requestTask(
+  path: string,
+  apiKey: string,
+  init: RequestInit,
+): Promise<ApiResult<MagnificTask>> {
+  const key = apiKey.trim();
+  if (!key) return { ok: false, message: 'Masukkan API key Magnific terlebih dahulu.' };
+
+  try {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-magnific-api-key': key,
+        ...init.headers,
+      },
+    });
+
+    const json = await readJson(response);
+    if (!response.ok) {
+      return { ok: false, message: extractMessage(json) || `Request gagal (${response.status}).` };
+    }
+
+    const data = normalizeTask(json);
+    if (!data) return { ok: false, message: 'Respons API tidak berisi task_id yang valid.' };
+
+    return { ok: true, data };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : 'Tidak bisa menghubungi Magnific API.',
+    };
+  }
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return text;
+  }
+}
+
+function normalizeTask(value: unknown): MagnificTask | null {
+  const root = asRecord(value);
+  const candidate = asRecord(root?.data) ?? root;
+  const taskId = readString(candidate?.task_id ?? candidate?.id);
+  const status = readString(candidate?.status) as TaskStatus | undefined;
+
+  if (!taskId || !status) return null;
+
+  return {
+    task_id: taskId,
+    status,
+    generated: readStringArray(candidate?.generated),
+  };
+}
+
+function extractMessage(value: unknown): string | null {
+  if (typeof value === 'string') return value;
+  const root = asRecord(value);
+  return readString(root?.message) ?? readString(asRecord(root?.problem)?.message) ?? null;
+}
+
+function compact(input: Record<string, unknown>): Record<string, unknown> {
+  const output: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined && value !== null && value !== '') output[key] = value;
+  }
+  return output;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function readStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined;
+}
