@@ -62,6 +62,8 @@ const PENDING_GENERATE_TTL_MS = 10 * 60 * 1000;
 const PENDING_GENERATE_MESSAGE = 'Generate yang sama baru saja dikirim dan statusnya belum pasti. Jangan klik ulang karena bisa memotong limit lagi. Tunggu beberapa menit, lalu cek history/task di dashboard Magnific.';
 const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
 const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
+export const MAX_DEVICE_UPLOAD_BYTES = 18 * 1024 * 1024;
+const MAX_DEVICE_UPLOAD_MB = Math.floor(MAX_DEVICE_UPLOAD_BYTES / (1024 * 1024));
 
 
 export type MagnificModel = {
@@ -506,16 +508,51 @@ function isDataUrl(value: string | undefined): value is string {
 }
 
 async function uploadDataUrl(dataUrl: string, filename: string): Promise<string> {
-  const response = await fetch('/api/upload', {
+  const byteLength = getDataUrlByteLength(dataUrl);
+  if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video asli dari galeri.');
+  if (byteLength > MAX_DEVICE_UPLOAD_BYTES) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${MAX_DEVICE_UPLOAD_MB} MB agar upload tidak ditolak server.`);
+
+  const formData = new FormData();
+  formData.set('file', dataUrlToFile(dataUrl, filename));
+
+  const response = await fetch('https://new.fileditch.com/upload.php', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, filename }),
+    body: formData,
   });
   const json = await readJson(response);
   if (!response.ok) throw new Error(extractMessage(json) ?? 'Upload file dari device gagal.');
   const url = readString(asRecord(json)?.url);
   if (!url) throw new Error('Upload file tidak mengembalikan URL publik.');
   return url;
+}
+
+function getDataUrlByteLength(dataUrl: string): number | null {
+  const commaIndex = dataUrl.indexOf(',');
+  const header = commaIndex >= 0 ? dataUrl.slice(0, commaIndex) : '';
+  if (!header.includes(';base64')) return null;
+  const base64 = dataUrl.slice(commaIndex + 1).replace(/\s/g, '');
+  if (base64.length === 0) return 0;
+  const padding = (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
+  return Math.floor((base64.length * 3) / 4) - padding;
+}
+
+function dataUrlToFile(dataUrl: string, filename: string): File {
+  const commaIndex = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, commaIndex);
+  const mimeMatch = /^data:([^;,]+)/.exec(header);
+  const mimeType = mimeMatch?.[1] ?? 'application/octet-stream';
+  const bytes = Uint8Array.from(atob(dataUrl.slice(commaIndex + 1)), (character) => character.charCodeAt(0));
+  return new File([bytes], buildUploadFilename(filename, mimeType), { type: mimeType });
+}
+
+function buildUploadFilename(baseName: string, mimeType: string): string {
+  const extension = mimeType.split('/')[1]?.split('+')[0]?.replace(/[^a-z0-9]/gi, '').toLowerCase() || 'bin';
+  return `${baseName}.${extension}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function compact(input: Record<string, unknown>): Record<string, unknown> {

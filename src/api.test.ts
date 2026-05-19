@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, formatElapsedTime, formatUploadSelection, getAutoPollDelay, getDefaultModelForMode, generateVideo, getCachedHistory, getMagnificModelsForMode, getPendingGenerate, getTaskStatus, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, formatElapsedTime, formatUploadSelection, getAutoPollDelay, getDefaultModelForMode, generateVideo, getCachedHistory, getMagnificModelsForMode, getPendingGenerate, getTaskStatus, MAX_DEVICE_UPLOAD_BYTES, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -96,8 +96,8 @@ describe('Magnific payload helpers', () => {
     const calls: Array<{ url: string; body: unknown }> = [];
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        calls.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
-        if (String(input) === '/api/upload') {
+        calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
+        if (String(input) === 'https://new.fileditch.com/upload.php') {
           return new Response(JSON.stringify({ url: `https://files.example.com/${calls.length}` }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-motion', status: 'CREATED' }), { status: 200 });
@@ -110,8 +110,8 @@ describe('Magnific payload helpers', () => {
 
       expect(result.ok).toBe(true);
       expect(calls.map((call) => call.url)).toEqual([
-        '/api/upload',
-        '/api/upload',
+        'https://new.fileditch.com/upload.php',
+        'https://new.fileditch.com/upload.php',
         '/api/magnific/v1/ai/video/kling-v3-motion-control-std',
       ]);
       expect(calls[2].body).toMatchObject({
@@ -127,7 +127,7 @@ describe('Magnific payload helpers', () => {
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL) => {
-        if (String(input) === '/api/upload') {
+        if (String(input) === 'https://new.fileditch.com/upload.php') {
           return new Response(JSON.stringify({ message: 'Upload file gagal.' }), { status: 502 });
         }
         return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
@@ -144,13 +144,36 @@ describe('Magnific payload helpers', () => {
     }
   });
 
+  it('blocks oversized public-url uploads before hitting serverless payload limits', async () => {
+    const originalFetch = globalThis.fetch;
+    let called = false;
+    try {
+      globalThis.fetch = (async () => {
+        called = true;
+        return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const oversizedPayload = `data:video/mp4;base64,${'A'.repeat(Math.ceil((MAX_DEVICE_UPLOAD_BYTES + 1) / 3) * 4)}`;
+      const result = await generateVideo('kling-v3-motion-control-std', {
+        imageUrl: 'https://example.com/cat.png',
+        videoUrl: oversizedPayload,
+      });
+
+      expect(called).toBe(false);
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('terlalu besar');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('hosts video image and reference uploads before submitting to Magnific', async () => {
     const originalFetch = globalThis.fetch;
     const calls: Array<{ url: string; body: unknown }> = [];
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        calls.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
-        if (String(input) === '/api/upload') {
+        calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
+        if (String(input) === 'https://new.fileditch.com/upload.php') {
           return new Response(JSON.stringify({ url: `https://files.example.com/${calls.length}` }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-video', status: 'CREATED' }), { status: 200 });
@@ -163,8 +186,8 @@ describe('Magnific payload helpers', () => {
       });
 
       expect(calls.map((call) => call.url)).toEqual([
-        '/api/upload',
-        '/api/upload',
+        'https://new.fileditch.com/upload.php',
+        'https://new.fileditch.com/upload.php',
         '/api/magnific/v1/ai/video/kling-v3-omni-std',
       ]);
       expect(calls[2].body).toMatchObject({
