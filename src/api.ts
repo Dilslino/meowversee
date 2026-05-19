@@ -7,6 +7,7 @@ export type GeneratePayload = {
   startImageUrl?: string;
   endImageUrl?: string;
   videoUrl?: string;
+  referenceImageUrls?: string[];
   aspectRatio?: 'auto' | '16:9' | '9:16' | '1:1';
   duration?: string;
   generateAudio?: boolean;
@@ -20,6 +21,14 @@ export type MagnificTask = {
   generated?: string[];
 };
 
+export type CachedHistoryItem = {
+  task: MagnificTask;
+  model: ModelId;
+  prompt: string;
+  createdAt: number;
+  expiresAt: number;
+};
+
 export type ApiResult<T> = {
   ok: boolean;
   data?: T;
@@ -27,6 +36,10 @@ export type ApiResult<T> = {
 };
 
 const BASE_URL = 'https://api.magnific.com';
+const HISTORY_KEY = 'meowversee:generate-history';
+const HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_HISTORY_ITEMS = 12;
+
 
 const endpoints: Record<ModelId, { create: string; status: string }> = {
   omni: {
@@ -53,6 +66,49 @@ export function storeApiKey(value: string): void {
   window.localStorage.setItem('meowversee:magnific-api-key', key);
 }
 
+export function getCachedHistory(now = Date.now()): CachedHistoryItem[] {
+  const raw = window.localStorage.getItem(HISTORY_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+
+    const items = parsed.filter(isCachedHistoryItem).filter((item) => item.expiresAt > now);
+    if (items.length !== parsed.length) writeCachedHistory(items);
+    return items;
+  } catch {
+    window.localStorage.removeItem(HISTORY_KEY);
+    return [];
+  }
+}
+
+export function cacheHistoryItem(model: ModelId, task: MagnificTask, prompt: string, now = Date.now()): CachedHistoryItem[] {
+  const item: CachedHistoryItem = {
+    task,
+    model,
+    prompt: prompt.trim(),
+    createdAt: now,
+    expiresAt: now + HISTORY_TTL_MS,
+  };
+  const deduped = getCachedHistory(now).filter((entry) => entry.task.task_id !== task.task_id);
+  const next = [item, ...deduped].slice(0, MAX_HISTORY_ITEMS);
+  writeCachedHistory(next);
+  return next;
+}
+
+export function updateCachedHistoryTask(model: ModelId, task: MagnificTask, now = Date.now()): CachedHistoryItem[] {
+  const next = getCachedHistory(now).map((entry) =>
+    entry.model === model && entry.task.task_id === task.task_id ? { ...entry, task } : entry,
+  );
+  writeCachedHistory(next);
+  return next;
+}
+
+function writeCachedHistory(items: CachedHistoryItem[]): void {
+  window.localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+}
+
 export function buildRequestBody(model: ModelId, payload: GeneratePayload): Record<string, unknown> {
   if (model === 'motion') {
     const body: Record<string, unknown> = {
@@ -72,6 +128,7 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
   if (payload.imageUrl?.trim()) body.image_url = payload.imageUrl.trim();
   if (payload.startImageUrl?.trim()) body.start_image_url = payload.startImageUrl.trim();
   if (payload.endImageUrl?.trim()) body.end_image_url = payload.endImageUrl.trim();
+  if (payload.referenceImageUrls?.length) body.image_urls = payload.referenceImageUrls.filter((url) => url.trim()).map((url) => url.trim()).slice(0, 4);
   if (payload.aspectRatio) body.aspect_ratio = payload.aspectRatio;
   if (payload.duration) body.duration = payload.duration;
   if (typeof payload.generateAudio === 'boolean') body.generate_audio = payload.generateAudio;
@@ -203,4 +260,20 @@ function readString(value: unknown): string | undefined {
 
 function readStringArray(value: unknown): string[] | undefined {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : undefined;
+}
+
+function isCachedHistoryItem(value: unknown): value is CachedHistoryItem {
+  const item = asRecord(value);
+  const task = asRecord(item?.task);
+  const model = item?.model;
+  const status = task?.status;
+
+  return (
+    (model === 'omni' || model === 'motion') &&
+    typeof item?.prompt === 'string' &&
+    typeof item?.createdAt === 'number' &&
+    typeof item?.expiresAt === 'number' &&
+    typeof task?.task_id === 'string' &&
+    typeof status === 'string'
+  );
 }

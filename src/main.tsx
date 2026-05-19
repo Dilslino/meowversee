@@ -1,15 +1,19 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowRight, Cat, CheckCircle2, ExternalLink, Film, KeyRound, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, Cat, CheckCircle2, ExternalLink, Film, ImagePlus, KeyRound, Loader2, Sparkles } from 'lucide-react';
 import './styles.css';
 import {
+  CachedHistoryItem,
   GeneratePayload,
   MagnificTask,
   ModelId,
+  cacheHistoryItem,
   generateVideo,
+  getCachedHistory,
   getStoredApiKey,
   getTaskStatus,
   storeApiKey,
+  updateCachedHistoryTask,
 } from './api';
 
 const modelCopy: Record<ModelId, { title: string; eyebrow: string; description: string }> = {
@@ -33,6 +37,7 @@ function App() {
   const [startImageUrl, setStartImageUrl] = useState('');
   const [endImageUrl, setEndImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [referenceImageUrls, setReferenceImageUrls] = useState<string[]>([]);
   const [aspectRatio, setAspectRatio] = useState<GeneratePayload['aspectRatio']>('16:9');
   const [duration, setDuration] = useState('5');
   const [generateAudio, setGenerateAudio] = useState(true);
@@ -42,19 +47,41 @@ function App() {
   const [task, setTask] = useState<MagnificTask | null>(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<CachedHistoryItem[]>([]);
 
   useEffect(() => {
     setApiKey(getStoredApiKey());
+    setHistory(getCachedHistory());
   }, []);
 
   const current = modelCopy[model];
   const maskedKey = useMemo(() => (apiKey ? `${apiKey.slice(0, 6)}••••${apiKey.slice(-4)}` : 'Belum tersimpan'), [apiKey]);
+  const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0);
 
   function handleKeySave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     storeApiKey(apiKey);
     setApiKey(getStoredApiKey());
     setMessage(apiKey.trim() ? 'API key tersimpan di cache browser.' : 'API key dihapus dari cache browser.');
+  }
+
+  async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference', files: FileList | null) {
+    if (!files?.length) return;
+    const urls = await Promise.all(Array.from(files).slice(0, target === 'reference' ? 4 : 1).map(readFileAsDataUrl));
+
+    if (target === 'image') setImageUrl(urls[0]);
+    if (target === 'start') setStartImageUrl(urls[0]);
+    if (target === 'end') setEndImageUrl(urls[0]);
+    if (target === 'reference') setReferenceImageUrls(urls.slice(0, 4));
+  }
+
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => resolve(String(reader.result ?? '')));
+      reader.addEventListener('error', () => reject(reader.error ?? new Error('Gagal membaca file.')));
+      reader.readAsDataURL(file);
+    });
   }
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
@@ -68,6 +95,7 @@ function App() {
       startImageUrl,
       endImageUrl,
       videoUrl,
+      referenceImageUrls,
       aspectRatio,
       duration,
       generateAudio,
@@ -85,7 +113,8 @@ function App() {
 
     setTask(result.data);
     setTaskId(result.data.task_id);
-    setMessage('Task berhasil dibuat. Gunakan cek status untuk melihat hasil video.');
+    setHistory(cacheHistoryItem(model, result.data, prompt));
+    setMessage('Task dibuat. History tersimpan 24 jam.');
   }
 
   async function handleCheckStatus() {
@@ -100,6 +129,7 @@ function App() {
     }
 
     setTask(result.data);
+    setHistory(updateCachedHistoryTask(model, result.data));
     setMessage(`Status terbaru: ${result.data.status}.`);
   }
 
@@ -170,18 +200,27 @@ function App() {
 
             {model === 'omni' ? (
               <>
-                <label>
-                  Image URL opsional
-                  <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://.../start.png" />
+                <label className="upload-card">
+                  <ImagePlus size={18} />
+                  Upload image utama
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
                 </label>
-                <label>
-                  Start image URL opsional
-                  <input value={startImageUrl} onChange={(event) => setStartImageUrl(event.target.value)} placeholder="https://.../first.png" />
+                <label className="upload-card">
+                  <ImagePlus size={18} />
+                  Upload start frame
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('start', event.target.files)} />
                 </label>
-                <label>
-                  End image URL opsional
-                  <input value={endImageUrl} onChange={(event) => setEndImageUrl(event.target.value)} placeholder="https://.../last.png" />
+                <label className="upload-card">
+                  <ImagePlus size={18} />
+                  Upload end frame
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('end', event.target.files)} />
                 </label>
+                <label className="upload-card wide">
+                  <ImagePlus size={18} />
+                  Foto referensi style / karakter (maks 4)
+                  <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleImageUpload('reference', event.target.files)} />
+                </label>
+                <div className="upload-note wide">{imagePreviewCount} image siap dipakai dari device.</div>
                 <label>
                   Aspect ratio
                   <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
@@ -206,9 +245,10 @@ function App() {
               </>
             ) : (
               <>
-                <label>
-                  Character image URL
-                  <input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://.../character.webp" />
+                <label className="upload-card">
+                  <ImagePlus size={18} />
+                  Upload character image
+                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
                 </label>
                 <label>
                   Motion video URL
@@ -249,6 +289,28 @@ function App() {
               <code>{task.task_id}</code>
               {task.generated?.map((url) => (
                 <a key={url} href={url} target="_blank" rel="noreferrer" className="video-link">Buka hasil video <ExternalLink size={15} /></a>
+              ))}
+            </div>
+          )}
+          {history.length > 0 && (
+            <div className="history-list" aria-label="History generate 24 jam">
+              <strong>History 24 jam</strong>
+              {history.map((item) => (
+                <button
+                  key={item.task.task_id}
+                  type="button"
+                  className="history-item"
+                  onClick={() => {
+                    setModel(item.model);
+                    setTask(item.task);
+                    setTaskId(item.task.task_id);
+                    setPrompt(item.prompt);
+                  }}
+                >
+                  <span>{modelCopy[item.model].title}</span>
+                  <code>{item.task.task_id}</code>
+                  <em>{item.task.status}</em>
+                </button>
               ))}
             </div>
           )}

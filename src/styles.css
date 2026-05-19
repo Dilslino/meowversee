@@ -293,6 +293,30 @@ select:focus {
 
 .switch-row input { width: auto; }
 
+.upload-card {
+  min-height: 96px;
+  border: 1px dashed rgba(108, 59, 80, 0.28);
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(255, 241, 246, 0.72);
+  color: var(--plum);
+  place-content: center;
+}
+
+.upload-card input {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.82rem;
+}
+
+.upload-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
 .cache-note {
   margin-top: 16px;
   padding: 12px;
@@ -345,6 +369,42 @@ select:focus {
 .status.completed { background: #dff7e5; color: #246138; }
 .status.failed { background: #ffe0df; color: #8b2521; }
 .status.in_progress { background: #fff1c7; color: #7a5810; }
+
+.history-list {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.history-list > strong {
+  font-family: 'Fraunces', serif;
+  font-size: 1.05rem;
+}
+
+.history-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  text-align: left;
+  background: #fff;
+  color: var(--ink);
+}
+
+.history-item span,
+.history-item em {
+  font-weight: 900;
+  font-style: normal;
+}
+
+.history-item code {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .spin { animation: spin 800ms linear infinite; }
 
