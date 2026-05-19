@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -157,5 +157,18 @@ describe('Automatic status polling helpers', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe('Automatic polling cadence', () => {
+  it('keeps polling after the first minute without stopping early', () => {
+    expect(getAutoPollDelay(0)).toBe(0);
+    expect(getAutoPollDelay(1)).toBe(1_000);
+    expect(getAutoPollDelay(2)).toBe(3_000);
+    expect(getAutoPollDelay(3)).toBe(7_000);
+    expect(getAutoPollDelay(4)).toBe(15_000);
+    expect(getAutoPollDelay(5)).toBe(30_000);
+    expect(getAutoPollDelay(6)).toBe(30_000);
+    expect(getAutoPollDelay(25)).toBe(30_000);
   });
 });

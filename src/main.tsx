@@ -9,6 +9,7 @@ import {
   ModelId,
   cacheHistoryItem,
   generateVideo,
+  getAutoPollDelay,
   getCachedHistory,
   getStoredApiKey,
   getTaskStatus,
@@ -20,7 +21,7 @@ const modelCopy: Record<ModelId, { title: string }> = {
   omni: { title: 'Kling 3 Omni' },
   motion: { title: 'Kling Motion v3' },
 };
-const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000];
+const MAX_AUTO_POLL_ATTEMPTS = 240;
 const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
 
@@ -114,12 +115,13 @@ export default function App() {
   }
 
   async function pollTaskUntilFinished(nextTaskId: string, nextModel: ModelId, nextPrompt: string) {
-    for (const delay of AUTO_POLL_DELAYS_MS) {
+    for (let attempt = 0; attempt < MAX_AUTO_POLL_ATTEMPTS; attempt += 1) {
+      const delay = getAutoPollDelay(attempt);
       if (delay > 0) await wait(delay);
       const result = await getTaskStatus(apiKey, nextModel, nextTaskId);
       if (!result.ok || !result.data) {
-        setMessage(result.message ?? 'Task sudah dibuat, tapi status otomatis belum bisa dibaca. Cek history Magnific kalau hasil belum muncul.');
-        return;
+        setMessage(result.message ?? 'Task sudah dibuat, tapi status otomatis belum bisa dibaca. Meowversee akan coba lagi otomatis.');
+        continue;
       }
 
       setTask(result.data);
@@ -135,9 +137,11 @@ export default function App() {
         setMessage(result.data.status === 'FAILED' ? 'Generate gagal di Magnific. Limit tidak akan diklik ulang otomatis.' : 'Video selesai, tapi URL hasil belum dikirim Magnific.');
         return;
       }
+
+      setMessage(`Status terbaru: ${result.data.status}. Meowversee masih cek otomatis.`);
     }
 
-    setMessage('Task masih diproses Magnific. Meowversee akan menampilkan hasil saat status dicek ulang dari history.');
+    setMessage('Task masih diproses lama oleh Magnific. Buka lagi nanti, history tetap tersimpan 24 jam.');
   }
 
   function wait(ms: number): Promise<void> {

@@ -49,6 +49,7 @@ const PENDING_GENERATE_KEY = 'meowversee:pending-generate';
 const PENDING_GENERATE_TTL_MS = 10 * 60 * 1000;
 const PENDING_GENERATE_MESSAGE = 'Generate yang sama baru saja dikirim dan statusnya belum pasti. Jangan klik ulang karena bisa memotong limit lagi. Tunggu beberapa menit, lalu cek history/task di dashboard Magnific.';
 const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
+const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
 
 
 const endpoints: Record<ModelId, { create: string; status: string }> = {
@@ -158,6 +159,10 @@ export function validatePayload(model: ModelId, payload: GeneratePayload): strin
   }
 
   return null;
+}
+
+export function getAutoPollDelay(attemptIndex: number): number {
+  return AUTO_POLL_DELAYS_MS[Math.min(Math.max(0, attemptIndex), AUTO_POLL_DELAYS_MS.length - 1)];
 }
 
 export async function generateVideo(
