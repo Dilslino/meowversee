@@ -604,6 +604,28 @@ function extractMessage(value: unknown): string | null {
   return readString(root?.message) ?? readString(asRecord(root?.problem)?.message) ?? null;
 }
 
+
+function extractMessageFromText(value: string): string | null {
+  const parsed = parseJson(value);
+  return extractMessage(parsed) ?? (value.trim() || null);
+}
+
+function parseJson(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
 export function getPendingGenerate(model: ModelId, payloadOrBody: GeneratePayload | Record<string, unknown>, now = Date.now()): PendingGenerate | null {
   const raw = window.localStorage.getItem(PENDING_GENERATE_KEY);
   if (!raw) return null;
@@ -680,22 +702,25 @@ function isDataUrl(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().startsWith('data:');
 }
 
+const CATBOX_UPLOAD_URL = 'https://catbox.moe/user/api.php';
+
 async function uploadDataUrl(dataUrl: string, filename: string, maxBytes = MAX_DEVICE_UPLOAD_BYTES): Promise<string> {
   const byteLength = getDataUrlByteLength(dataUrl);
   if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video/audio asli dari galeri.');
   if (byteLength > maxBytes) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${formatBytes(maxBytes)} agar upload tidak ditolak server.`);
 
   const formData = new FormData();
-  formData.set('file', dataUrlToFile(dataUrl, filename));
+  formData.set('reqtype', 'fileupload');
+  formData.set('fileToUpload', dataUrlToFile(dataUrl, filename));
 
-  const response = await fetch('https://new.fileditch.com/upload.php', {
+  const response = await fetch(CATBOX_UPLOAD_URL, {
     method: 'POST',
     body: formData,
   });
-  const json = await readJson(response);
-  if (!response.ok) throw new Error(extractMessage(json) ?? 'Upload file dari device gagal.');
-  const url = readString(asRecord(json)?.url);
-  if (!url) throw new Error('Upload file tidak mengembalikan URL publik.');
+  const text = await response.text();
+  if (!response.ok) throw new Error(extractMessageFromText(text) ?? 'Upload file dari device gagal.');
+  const url = text.trim();
+  if (!isHttpUrl(url)) throw new Error('Upload file tidak mengembalikan URL publik.');
   return url;
 }
 

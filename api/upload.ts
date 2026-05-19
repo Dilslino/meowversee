@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const FILEDITCH_UPLOAD_URL = 'https://new.fileditch.com/upload.php';
+const CATBOX_UPLOAD_URL = 'https://catbox.moe/user/api.php';
 const DATA_URL_PATTERN = /^data:([^;,]+)(?:;[^,]*)?;base64,(.*)$/s;
 
 export type HostedUpload = {
@@ -32,24 +32,25 @@ export default async function handler(request: VercelRequest, response: VercelRe
   }
 
   try {
-    const upstream = await fetch(`${FILEDITCH_UPLOAD_URL}?filename=${encodeURIComponent(file.filename)}`, {
+    const formData = new FormData();
+    formData.set('reqtype', 'fileupload');
+    formData.set('fileToUpload', new File([new Uint8Array(file.bytes)], file.filename, { type: file.contentType }));
+
+    const upstream = await fetch(CATBOX_UPLOAD_URL, {
       method: 'POST',
-      headers: {
-        'content-type': file.contentType,
-        'x-filename': file.filename,
-      },
-      body: new Uint8Array(file.bytes),
+      body: formData,
     });
     const text = await upstream.text();
     const json = parseJson(text);
 
     if (!upstream.ok) {
-      response.status(upstream.status).json({ message: readString(asRecord(json)?.error) ?? readString(asRecord(json)?.message) ?? 'Upload file gagal.' });
+      const message = readString(asRecord(json)?.error) ?? readString(asRecord(json)?.message) ?? (text.trim() || 'Upload file gagal.');
+      response.status(upstream.status).json({ message });
       return;
     }
 
-    const uploadedUrl = readString(asRecord(json)?.url);
-    if (!uploadedUrl) {
+    const uploadedUrl = text.trim();
+    if (!isHttpUrl(uploadedUrl)) {
       response.status(502).json({ message: 'Upload file tidak mengembalikan URL publik.' });
       return;
     }
@@ -104,4 +105,13 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
