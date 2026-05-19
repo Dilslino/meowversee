@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowRight, Cat, CheckCircle2, ExternalLink, Film, ImagePlus, KeyRound, Loader2 } from 'lucide-react';
+import { ArrowRight, Cat, ExternalLink, Film, ImagePlus, Loader2 } from 'lucide-react';
 import './styles.css';
 import {
   CachedHistoryItem,
@@ -16,9 +16,9 @@ import {
   getAutoPollDelay,
   getCachedHistory,
   getMagnificModelsForMode,
+  MAGNIFIC_MODELS,
   MAGNIFIC_MODE_COPY,
   getTaskStatus,
-  isUsingServerApiKey,
   updateCachedHistoryTask,
 } from './api';
 
@@ -28,7 +28,6 @@ const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
 
 export default function App() {
-  const [serverApiReady] = useState(isUsingServerApiKey());
   const [mode, setMode] = useState<StudioMode>('video');
   const [model, setModel] = useState<ModelId>(getDefaultModelForMode('video'));
   const [prompt, setPrompt] = useState('A tiny white cat astronaut drifts through a pastel pink nebula, cinematic soft light');
@@ -42,6 +41,8 @@ export default function App() {
   const [generateAudio, setGenerateAudio] = useState(true);
   const [characterOrientation, setCharacterOrientation] = useState<'video' | 'image'>('video');
   const [cfgScale, setCfgScale] = useState(0.5);
+  const [upscaleFactor, setUpscaleFactor] = useState<GeneratePayload['upscaleFactor']>('2x');
+  const [upscaleEngine, setUpscaleEngine] = useState<GeneratePayload['upscaleEngine']>('automatic');
   const [taskId, setTaskId] = useState('');
   const [task, setTask] = useState<MagnificTask | null>(null);
   const [message, setMessage] = useState('');
@@ -67,10 +68,17 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [generationStartedAt, task?.status]);
 
-  const apiStatusText = useMemo(() => (serverApiReady ? 'API key owner aktif via server' : 'API key server belum aktif'), [serverApiReady]);
   const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0) + (endImageUrl ? 1 : 0);
   const availableModels = getMagnificModelsForMode(mode);
   const selectedModeCopy = MAGNIFIC_MODE_COPY[mode];
+
+  function handleModeChange(nextMode: StudioMode) {
+    setMode(nextMode);
+    setModel(getDefaultModelForMode(nextMode));
+    setTask(null);
+    setTaskId('');
+    setMessage('');
+  }
 
 
 
@@ -112,6 +120,8 @@ export default function App() {
       generateAudio,
       characterOrientation,
       cfgScale,
+      upscaleFactor,
+      upscaleEngine,
     };
 
     const result = await generateVideo(model, payload);
@@ -217,15 +227,6 @@ export default function App() {
       </section>
 
       <section className="workspace" aria-label="Generator video">
-        <aside className="panel key-panel">
-          <div className="section-title"><KeyRound size={20} /> API server</div>
-          <p className="muted">Kamu tidak perlu masukin API key. Request Magnific lewat server Meowversee dan memakai API key owner dari environment Supabase/Vercel.</p>
-          <div className="cache-note"><CheckCircle2 size={18} /> {apiStatusText}</div>
-          <div className="tutorial-card" aria-label="Info API key Meowversee">
-            <strong>Mode pengguna</strong>
-            <p>Cukup upload asset, pilih fitur/model, lalu generate. API key tidak disimpan di browser pengguna.</p>
-          </div>
-        </aside>
 
         <section className="panel generator-panel">
           <div className="tabs" role="tablist" aria-label="Pilih fitur Magnific">
@@ -236,10 +237,7 @@ export default function App() {
                 role="tab"
                 aria-selected={mode === item}
                 className={mode === item ? 'tab active' : 'tab'}
-                onClick={() => {
-                  setMode(item);
-                  setModel(getDefaultModelForMode(item));
-                }}
+                onClick={() => handleModeChange(item)}
               >
                 {MAGNIFIC_MODE_COPY[item].title}
               </button>
@@ -261,7 +259,7 @@ export default function App() {
               <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} maxLength={2500} rows={5} />
             </label>
 
-            {model === 'omni' ? (
+            {mode === 'video' ? (
               <>
                 {renderUploadControl('image', 'Upload image utama', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Image utama', imageUrl)}
@@ -298,7 +296,7 @@ export default function App() {
                   Generate audio native
                 </label>
               </>
-            ) : (
+            ) : mode === 'motion' ? (
               <>
                 {renderUploadControl('image', 'Upload character image', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Character image', imageUrl)}
@@ -316,11 +314,55 @@ export default function App() {
                   <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
                 </label>
               </>
+            ) : mode === 'image' ? (
+              <>
+                {model === 'mystic' && renderUploadControl('image', 'Upload structure reference (opsional)', 'image/png,image/jpeg,image/webp')}
+                {model === 'mystic' && renderImagePreview('Structure reference', imageUrl)}
+                {model === 'mystic' && renderUploadControl('reference', 'Upload style reference (opsional)', 'image/png,image/jpeg,image/webp')}
+                {model === 'mystic' && referenceImageUrls[0] && renderImagePreview('Style reference', referenceImageUrls[0])}
+                {model === 'mystic' && (
+                  <label>
+                    Aspect ratio
+                    <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
+                      <option value="square_1_1">Square 1:1</option>
+                      <option value="social_story_9_16">Story 9:16</option>
+                      <option value="widescreen_16_9">Widescreen 16:9</option>
+                    </select>
+                  </label>
+                )}
+              </>
+            ) : (
+              <>
+                {renderUploadControl('image', 'Upload image untuk upscale', 'image/png,image/jpeg,image/webp')}
+                {renderImagePreview('Image untuk upscale', imageUrl)}
+                {model === 'image-upscaler' && (
+                  <>
+                    <label>
+                      Scale factor
+                      <select value={upscaleFactor} onChange={(event) => setUpscaleFactor(event.target.value as GeneratePayload['upscaleFactor'])}>
+                        <option value="2x">2x</option>
+                        <option value="4x">4x</option>
+                        <option value="8x">8x</option>
+                        <option value="16x">16x</option>
+                      </select>
+                    </label>
+                    <label>
+                      Engine
+                      <select value={upscaleEngine} onChange={(event) => setUpscaleEngine(event.target.value as GeneratePayload['upscaleEngine'])}>
+                        <option value="automatic">Automatic</option>
+                        <option value="magnific_illusio">Magnific Illusio</option>
+                        <option value="magnific_sharpy">Magnific Sharpy</option>
+                        <option value="magnific_sparkle">Magnific Sparkle</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+              </>
             )}
 
             <button type="submit" className="primary-button wide" disabled={loading}>
               {loading ? <Loader2 className="spin" size={18} /> : <Film size={18} />}
-              Generate video <ArrowRight size={18} />
+              {selectedModeCopy.button} <ArrowRight size={18} />
             </button>
           </form>
         </section>
@@ -355,7 +397,7 @@ export default function App() {
                     setPrompt(item.prompt);
                   }}
                 >
-                  <span>{modelCopy[item.model].title}</span>
+                  <span>{MAGNIFIC_MODELS.find((modelItem) => modelItem.id === item.model)?.title ?? item.model}</span>
                   <code>{item.task.task_id}</code>
                   <em>{item.task.status}</em>
                 </button>

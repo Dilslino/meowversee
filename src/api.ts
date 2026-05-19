@@ -133,9 +133,6 @@ export function getDefaultModelForMode(mode: StudioMode): ModelId {
   return getMagnificModelsForMode(mode)[0].id;
 }
 
-export function isUsingServerApiKey(): boolean {
-  return true;
-}
 
 export function getCachedHistory(now = Date.now()): CachedHistoryItem[] {
   const raw = window.localStorage.getItem(HISTORY_KEY);
