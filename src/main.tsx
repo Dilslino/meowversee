@@ -125,6 +125,26 @@ function App() {
     setMessage(`Status terbaru: ${result.data.status}.`);
   }
 
+  function renderImagePreview(label: string, url: string) {
+    if (!url) return null;
+    return (
+      <figure className="preview-card">
+        <img src={url} alt={`${label} preview`} />
+        <figcaption>{label}</figcaption>
+      </figure>
+    );
+  }
+
+  function renderVideoPreview(label: string, url: string) {
+    if (!url) return null;
+    return (
+      <figure className="preview-card video-preview">
+        <video src={url} controls muted playsInline />
+        <figcaption>{label}</figcaption>
+      </figure>
+    );
+  }
+
   return (
     <main className="page-shell">
       <section className="hero" aria-labelledby="hero-title">
@@ -196,21 +216,29 @@ function App() {
                   Upload image utama
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
                 </label>
+                {renderImagePreview('Image utama', imageUrl)}
                 <label className="upload-card">
                   <ImagePlus size={18} />
                   Upload start frame
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('start', event.target.files)} />
                 </label>
+                {renderImagePreview('Start frame', startImageUrl)}
                 <label className="upload-card">
                   <ImagePlus size={18} />
                   Upload end frame
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('end', event.target.files)} />
                 </label>
+                {renderImagePreview('End frame', endImageUrl)}
                 <label className="upload-card wide">
                   <ImagePlus size={18} />
                   Foto referensi style / karakter (maks 4)
                   <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleImageUpload('reference', event.target.files)} />
                 </label>
+                {referenceImageUrls.length > 0 && (
+                  <div className="preview-grid wide" aria-label="Preview foto referensi">
+                    {referenceImageUrls.map((url, index) => renderImagePreview(`Referensi ${index + 1}`, url))}
+                  </div>
+                )}
                 <div className="upload-note wide">{imagePreviewCount} image siap dipakai dari device.</div>
                 <label>
                   Aspect ratio
@@ -241,11 +269,13 @@ function App() {
                   Upload character image
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
                 </label>
+                {renderImagePreview('Character image', imageUrl)}
                 <label className="upload-card">
                   <ImagePlus size={18} />
                   Upload motion video
                   <input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(event) => void handleImageUpload('video', event.target.files)} />
                 </label>
+                {renderVideoPreview('Motion video', videoUrl)}
                 <label>
                   Orientasi karakter
                   <select value={characterOrientation} onChange={(event) => setCharacterOrientation(event.target.value as 'video' | 'image')}>
