@@ -197,6 +197,35 @@ export default function App() {
     );
   }
 
+  function getResultKind(itemModel: ModelId): 'video' | 'image' {
+    return itemModel === 'kling-v3-omni-std' || itemModel === 'kling-v3-motion-control-std' ? 'video' : 'image';
+  }
+
+  function getBeforeImageForHistory(itemModel: ModelId): string {
+    return itemModel === 'image-upscaler' || itemModel === 'image-upscaler-precision' ? imageUrl : '';
+  }
+
+  function renderResultPreview(url: string, itemModel: ModelId, label: string) {
+    return getResultKind(itemModel) === 'video' ? (
+      <video src={url} controls muted playsInline />
+    ) : (
+      <img src={url} alt={label} />
+    );
+  }
+
+  function renderUpscaleCompare(beforeUrl: string, afterUrl: string) {
+    if (!beforeUrl) return <img src={afterUrl} alt="Hasil upscale" />;
+    return (
+      <div className="compare-card">
+        <img src={beforeUrl} alt="Before upscale" />
+        <img className="compare-after" src={afterUrl} alt="After upscale" />
+        <input className="compare-slider" type="range" min="0" max="100" defaultValue="50" aria-label="Geser before after upscale" onInput={(event) => {
+          event.currentTarget.parentElement?.style.setProperty('--split', `${event.currentTarget.value}%`);
+        }} />
+      </div>
+    );
+  }
+
   function renderUploadControl(
     target: 'image' | 'start' | 'end' | 'reference' | 'video',
     label: string,
@@ -378,30 +407,46 @@ export default function App() {
                 <span className="elapsed-time">Berjalan {formatElapsedTime(now - generationStartedAt)}</span>
               )}
               {task.generated?.map((url) => (
-                <a key={url} href={url} target="_blank" rel="noreferrer" className="video-link">Buka hasil video <ExternalLink size={15} /></a>
+                <div key={url} className="result-preview">
+                  {model === 'image-upscaler' || model === 'image-upscaler-precision'
+                    ? renderUpscaleCompare(getBeforeImageForHistory(model), url)
+                    : renderResultPreview(url, model, 'Preview hasil')}
+                  <a href={url} download target="_blank" rel="noreferrer" className="download-button">Download hasil <ExternalLink size={15} /></a>
+                </div>
               ))}
             </div>
           )}
           {history.length > 0 && (
             <div className="history-list" aria-label="History generate 24 jam">
               <strong>History 24 jam</strong>
-              {history.map((item) => (
-                <button
-                  key={item.task.task_id}
-                  type="button"
-                  className="history-item"
-                  onClick={() => {
-                    setModel(item.model);
-                    setTask(item.task);
-                    setTaskId(item.task.task_id);
-                    setPrompt(item.prompt);
-                  }}
-                >
-                  <span>{MAGNIFIC_MODELS.find((modelItem) => modelItem.id === item.model)?.title ?? item.model}</span>
-                  <code>{item.task.task_id}</code>
-                  <em>{item.task.status}</em>
-                </button>
-              ))}
+              {history.map((item) => {
+                const resultUrl = item.task.generated?.[0];
+                return (
+                  <button
+                    key={item.task.task_id}
+                    type="button"
+                    className="history-item"
+                    onClick={() => {
+                      setModel(item.model);
+                      setTask(item.task);
+                      setTaskId(item.task.task_id);
+                      setPrompt(item.prompt);
+                    }}
+                  >
+                    {resultUrl && (
+                      <div className="history-preview">
+                        {item.model === 'image-upscaler' || item.model === 'image-upscaler-precision'
+                          ? renderUpscaleCompare(getBeforeImageForHistory(item.model), resultUrl)
+                          : renderResultPreview(resultUrl, item.model, `Preview ${item.task.task_id}`)}
+                      </div>
+                    )}
+                    <span>{MAGNIFIC_MODELS.find((modelItem) => modelItem.id === item.model)?.title ?? item.model}</span>
+                    <code>{item.task.task_id}</code>
+                    <em>{item.task.status}</em>
+                    {resultUrl && <a href={resultUrl} download target="_blank" rel="noreferrer" className="download-button" onClick={(event) => event.stopPropagation()}>Download</a>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </aside>

@@ -425,6 +425,91 @@ select:focus {
   color: var(--muted);
 }
 
+.result-preview,
+.history-preview {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--blush);
+}
+
+.result-preview {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+}
+
+.result-preview img,
+.result-preview video,
+.history-preview img,
+.history-preview video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--blush);
+}
+
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: var(--plum);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.compare-card {
+  --split: 50%;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--blush);
+}
+
+.compare-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.compare-after {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 var(--split));
+}
+
+.compare-card::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: var(--split);
+  width: 3px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(92, 42, 67, 0.24);
+  transform: translateX(-50%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.compare-slider {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: ew-resize;
+}
+
 .elapsed-time {
   width: fit-content;
   border-radius: 999px;
