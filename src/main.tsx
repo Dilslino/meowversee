@@ -11,9 +11,10 @@ import {
   cacheHistoryItem,
   formatElapsedTime,
   formatUploadSelection,
-  getDefaultModelForMode,
   generateVideo,
   getAutoPollDelay,
+  getDefaultModelForMode,
+  MAX_DEVICE_UPLOAD_BYTES,
   getCachedHistory,
   getMagnificModelsForMode,
   MAGNIFIC_MODELS,
@@ -235,6 +236,7 @@ export default function App() {
     accept: string,
     multiple = false,
     wide = false,
+    note = `Maks ${Math.floor(MAX_DEVICE_UPLOAD_BYTES / (1024 * 1024))} MB per file`,
   ) {
     return (
       <label className={wide ? 'upload-card wide' : 'upload-card'}>
@@ -242,6 +244,7 @@ export default function App() {
         <span className="upload-title">{label}</span>
         <span className="upload-pill">Pilih dari device</span>
         <span className="upload-selected">{formatUploadSelection(uploadCounts[target])}</span>
+        <span className="upload-limit">{note}</span>
         <input type="file" accept={accept} multiple={multiple} onChange={(event) => void handleImageUpload(target, event.target.files)} />
       </label>
     );

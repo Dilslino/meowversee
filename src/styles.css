@@ -320,6 +320,12 @@ select:focus {
   font-weight: 850;
 }
 
+.upload-limit {
+  color: var(--rose-strong);
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
 .upload-note {
   color: var(--muted);
   font-size: 0.9rem;
