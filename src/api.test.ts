@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, getCachedHistory, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -63,5 +63,38 @@ describe('generate history cache', () => {
 
     expect(getCachedHistory(now + 23 * 60 * 60 * 1000)).toHaveLength(1);
     expect(getCachedHistory(now + 25 * 60 * 60 * 1000)).toHaveLength(0);
+  });
+});
+
+describe('Magnific network failures', () => {
+  it('explains browser fetch failures as a connection/CORS problem', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
+
+    const result = await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.',
+    });
+
+    globalThis.fetch = originalFetch;
+  });
+});
+
+describe('Magnific request routing', () => {
+  it('uses the local proxy path so browser requests are same-origin', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestedUrl = '';
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      requestedUrl = String(input);
+      return Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }));
+    }) as typeof fetch;
+
+    await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' });
+
+    expect(requestedUrl).toBe('/api/magnific/v1/ai/video/kling-v3-omni-std');
+
+    globalThis.fetch = originalFetch;
   });
 });

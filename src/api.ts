@@ -35,10 +35,11 @@ export type ApiResult<T> = {
   message?: string;
 };
 
-const BASE_URL = 'https://api.magnific.com';
+const BASE_URL = '/api/magnific';
 const HISTORY_KEY = 'meowversee:generate-history';
 const HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_HISTORY_ITEMS = 12;
+const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
 
 
 const endpoints: Record<ModelId, { create: string; status: string }> = {
@@ -204,7 +205,7 @@ async function requestTask(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : 'Tidak bisa menghubungi Magnific API.',
+      message: isFetchFailure(error) ? FETCH_FAILURE_MESSAGE : error instanceof Error ? error.message : 'Tidak bisa menghubungi Magnific API.',
     };
   }
 }
@@ -246,6 +247,10 @@ function compact(input: Record<string, unknown>): Record<string, unknown> {
     if (value !== undefined && value !== null && value !== '') output[key] = value;
   }
   return output;
+}
+
+function isFetchFailure(error: unknown): boolean {
+  return error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch');
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
