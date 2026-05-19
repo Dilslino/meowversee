@@ -7,29 +7,31 @@ import {
   GeneratePayload,
   MagnificTask,
   ModelId,
+  StudioMode,
   cacheHistoryItem,
   formatElapsedTime,
   formatUploadSelection,
+  getDefaultModelForMode,
   generateVideo,
   getAutoPollDelay,
   getCachedHistory,
+  getMagnificModelsForMode,
   getStoredApiKey,
+  MAGNIFIC_MODE_COPY,
   getTaskStatus,
   storeApiKey,
   updateCachedHistoryTask,
 } from './api';
 
-const modelCopy: Record<ModelId, { title: string }> = {
-  omni: { title: 'Kling 3 Omni' },
-  motion: { title: 'Kling Motion v3' },
-};
+const modeOrder: StudioMode[] = ['video', 'motion', 'image', 'upscale'];
 const MAX_AUTO_POLL_ATTEMPTS = 240;
 const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
 
 export default function App() {
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState<ModelId>('omni');
+  const [mode, setMode] = useState<StudioMode>('video');
+  const [model, setModel] = useState<ModelId>(getDefaultModelForMode('video'));
   const [prompt, setPrompt] = useState('A tiny white cat astronaut drifts through a pastel pink nebula, cinematic soft light');
   const [imageUrl, setImageUrl] = useState('');
   const [startImageUrl, setStartImageUrl] = useState('');
@@ -69,6 +71,8 @@ export default function App() {
 
   const maskedKey = useMemo(() => (apiKey ? `${apiKey.slice(0, 6)}••••${apiKey.slice(-4)}` : 'Belum tersimpan'), [apiKey]);
   const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0) + (endImageUrl ? 1 : 0);
+  const availableModels = getMagnificModelsForMode(mode);
+  const selectedModeCopy = MAGNIFIC_MODE_COPY[mode];
 
   function handleKeySave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -251,20 +255,32 @@ export default function App() {
         </aside>
 
         <section className="panel generator-panel">
-          <div className="tabs" role="tablist" aria-label="Pilih model Kling">
-            {(Object.keys(modelCopy) as ModelId[]).map((item) => (
+          <div className="tabs" role="tablist" aria-label="Pilih fitur Magnific">
+            {modeOrder.map((item) => (
               <button
                 key={item}
                 type="button"
                 role="tab"
-                aria-selected={model === item}
-                className={model === item ? 'tab active' : 'tab'}
-                onClick={() => setModel(item)}
+                aria-selected={mode === item}
+                className={mode === item ? 'tab active' : 'tab'}
+                onClick={() => {
+                  setMode(item);
+                  setModel(getDefaultModelForMode(item));
+                }}
               >
-                {modelCopy[item].title}
+                {MAGNIFIC_MODE_COPY[item].title}
               </button>
             ))}
           </div>
+
+          <label className="wide">
+            Model AI Magnific
+            <select value={model} onChange={(event) => setModel(event.target.value as ModelId)}>
+              {availableModels.map((item) => (
+                <option key={item.id} value={item.id}>{item.title}</option>
+              ))}
+            </select>
+          </label>
 
           <form onSubmit={handleGenerate} className="form-grid">
             <label className="wide">

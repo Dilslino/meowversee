@@ -1,4 +1,11 @@
-export type ModelId = 'omni' | 'motion';
+export type StudioMode = 'video' | 'motion' | 'image' | 'upscale';
+export type ModelId =
+  | 'kling-v3-omni-std'
+  | 'kling-v3-motion-control-std'
+  | 'mystic'
+  | 'flux-2-turbo'
+  | 'image-upscaler'
+  | 'image-upscaler-precision';
 export type TaskStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 
 export type GeneratePayload = {
@@ -8,11 +15,13 @@ export type GeneratePayload = {
   endImageUrl?: string;
   videoUrl?: string;
   referenceImageUrls?: string[];
-  aspectRatio?: 'auto' | '16:9' | '9:16' | '1:1';
+  aspectRatio?: 'auto' | '16:9' | '9:16' | '1:1' | 'square_1_1' | 'social_story_9_16' | 'widescreen_16_9';
   duration?: string;
   generateAudio?: boolean;
   characterOrientation?: 'video' | 'image';
   cfgScale?: number;
+  upscaleFactor?: '2x' | '4x' | '8x' | '16x';
+  upscaleEngine?: 'automatic' | 'magnific_illusio' | 'magnific_sharpy' | 'magnific_sparkle';
 };
 
 export type MagnificTask = {
@@ -52,16 +61,77 @@ const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini 
 const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
 
 
-const endpoints: Record<ModelId, { create: string; status: string }> = {
-  omni: {
+export type MagnificModel = {
+  id: ModelId;
+  mode: StudioMode;
+  title: string;
+  create: string;
+  status: string;
+};
+
+export const MAGNIFIC_MODE_COPY: Record<StudioMode, { title: string; button: string }> = {
+  video: { title: 'Generate video', button: 'Generate video' },
+  motion: { title: 'Motion control', button: 'Generate motion' },
+  image: { title: 'Generate image', button: 'Generate image' },
+  upscale: { title: 'Upscale image', button: 'Upscale image' },
+};
+
+export const MAGNIFIC_MODELS: readonly MagnificModel[] = [
+  {
+    id: 'kling-v3-omni-std',
+    mode: 'video',
+    title: 'Kling 3 Omni Standard',
     create: '/v1/ai/video/kling-v3-omni-std',
     status: '/v1/ai/video/kling-v3-omni',
   },
-  motion: {
+  {
+    id: 'kling-v3-motion-control-std',
+    mode: 'motion',
+    title: 'Kling 3 Standard Motion Control',
     create: '/v1/ai/video/kling-v3-motion-control-std',
     status: '/v1/ai/video/kling-v3-motion-control-std',
   },
-};
+  {
+    id: 'mystic',
+    mode: 'image',
+    title: 'Mystic',
+    create: '/v1/ai/mystic',
+    status: '/v1/ai/mystic',
+  },
+  {
+    id: 'flux-2-turbo',
+    mode: 'image',
+    title: 'Flux 2 Turbo',
+    create: '/v1/ai/text-to-image/flux-2-turbo',
+    status: '/v1/ai/text-to-image/flux-2-turbo',
+  },
+  {
+    id: 'image-upscaler',
+    mode: 'upscale',
+    title: 'Upscaler Creative',
+    create: '/v1/ai/image-upscaler',
+    status: '/v1/ai/image-upscaler',
+  },
+  {
+    id: 'image-upscaler-precision',
+    mode: 'upscale',
+    title: 'Upscaler Precision',
+    create: '/v1/ai/image-upscaler-precision',
+    status: '/v1/ai/image-upscaler-precision',
+  },
+] as const;
+
+const endpoints: Record<ModelId, { create: string; status: string }> = Object.fromEntries(
+  MAGNIFIC_MODELS.map((model) => [model.id, { create: model.create, status: model.status }]),
+) as Record<ModelId, { create: string; status: string }>;
+
+export function getMagnificModelsForMode(mode: StudioMode): MagnificModel[] {
+  return MAGNIFIC_MODELS.filter((model) => model.mode === mode);
+}
+
+export function getDefaultModelForMode(mode: StudioMode): ModelId {
+  return getMagnificModelsForMode(mode)[0].id;
+}
 
 export function getStoredApiKey(): string {
   return window.localStorage.getItem('meowversee:magnific-api-key') ?? '';
@@ -121,7 +191,7 @@ function writeCachedHistory(items: CachedHistoryItem[]): void {
 }
 
 export function buildRequestBody(model: ModelId, payload: GeneratePayload): Record<string, unknown> {
-  if (model === 'motion') {
+  if (model === 'kling-v3-motion-control-std') {
     const body: Record<string, unknown> = {
       image_url: payload.imageUrl?.trim(),
       video_url: payload.videoUrl?.trim(),
@@ -131,6 +201,32 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
     if (payload.characterOrientation) body.character_orientation = payload.characterOrientation;
     if (typeof payload.cfgScale === 'number') body.cfg_scale = payload.cfgScale;
 
+    return compact(body);
+  }
+
+  if (model === 'image-upscaler' || model === 'image-upscaler-precision') {
+    const body: Record<string, unknown> = { image: stripDataUrlPrefix(payload.imageUrl?.trim() ?? '') };
+    if (model === 'image-upscaler') {
+      if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+      if (payload.upscaleFactor) body.scale_factor = payload.upscaleFactor;
+      if (payload.upscaleEngine) body.engine = payload.upscaleEngine;
+    }
+
+    return compact(body);
+  }
+
+  if (model === 'mystic') {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.imageUrl?.trim()) body.structure_reference = stripDataUrlPrefix(payload.imageUrl.trim());
+    if (payload.referenceImageUrls?.[0]?.trim()) body.style_reference = stripDataUrlPrefix(payload.referenceImageUrls[0].trim());
+    if (payload.aspectRatio) body.aspect_ratio = toMysticAspectRatio(payload.aspectRatio);
+    return compact(body);
+  }
+
+  if (model === 'flux-2-turbo') {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
     return compact(body);
   }
 
@@ -148,14 +244,24 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
 }
 
 export function validatePayload(model: ModelId, payload: GeneratePayload): string | null {
-  if (model === 'motion') {
-    if (!payload.imageUrl?.trim()) return 'Kling Motion v3 membutuhkan gambar karakter dari device.';
-    if (!payload.videoUrl?.trim()) return 'Kling Motion v3 membutuhkan video gerakan dari device.';
+  if (model === 'kling-v3-motion-control-std') {
+    if (!payload.imageUrl?.trim()) return 'Motion control membutuhkan gambar karakter dari device.';
+    if (!payload.videoUrl?.trim()) return 'Motion control membutuhkan video gerakan dari device.';
+    return null;
+  }
+
+  if (model === 'image-upscaler' || model === 'image-upscaler-precision') {
+    if (!payload.imageUrl?.trim()) return 'Upscale image membutuhkan gambar dari device.';
+    return null;
+  }
+
+  if (model === 'mystic' || model === 'flux-2-turbo') {
+    if (!payload.prompt?.trim()) return 'Generate image membutuhkan prompt.';
     return null;
   }
 
   if (!payload.prompt?.trim() && !payload.imageUrl?.trim() && !payload.startImageUrl?.trim()) {
-    return 'Kling 3 Omni membutuhkan prompt atau URL gambar awal.';
+    return 'Generate video membutuhkan prompt atau gambar awal.';
   }
 
   return null;
@@ -325,6 +431,19 @@ function compact(input: Record<string, unknown>): Record<string, unknown> {
   return output;
 }
 
+function stripDataUrlPrefix(value: string): string {
+  const commaIndex = value.indexOf(',');
+  return value.startsWith('data:') && commaIndex >= 0 ? value.slice(commaIndex + 1) : value;
+}
+
+function toMysticAspectRatio(value: GeneratePayload['aspectRatio']): string {
+  if (value === '9:16') return 'social_story_9_16';
+  if (value === '16:9') return 'widescreen_16_9';
+  if (value === '1:1') return 'square_1_1';
+  if (!value || value === 'auto') return 'square_1_1';
+  return value;
+}
+
 function isFetchFailure(error: unknown): boolean {
   return error instanceof TypeError && error.message.toLowerCase().includes('failed to fetch');
 }
@@ -350,7 +469,7 @@ function isCachedHistoryItem(value: unknown): value is CachedHistoryItem {
   const status = task?.status;
 
   return (
-    (model === 'omni' || model === 'motion') &&
+    typeof model === 'string' &&
     typeof item?.prompt === 'string' &&
     typeof item?.createdAt === 'number' &&
     typeof item?.expiresAt === 'number' &&

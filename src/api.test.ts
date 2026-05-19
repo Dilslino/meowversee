@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, formatElapsedTime, formatUploadSelection, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, formatElapsedTime, formatUploadSelection, getAutoPollDelay, getDefaultModelForMode, generateVideo, getCachedHistory, getMagnificModelsForMode, getPendingGenerate, getTaskStatus, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
     expect(
-      buildRequestBody('omni', {
+      buildRequestBody('kling-v3-omni-std', {
         prompt: '  cat walking through a pink moon garden  ',
         imageUrl: 'https://example.com/start.png',
         endImageUrl: 'https://example.com/end.png',
@@ -25,17 +25,17 @@ describe('Magnific payload helpers', () => {
   });
 
   it('requires motion-control character image and motion video uploads', () => {
-    expect(validatePayload('motion', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
-      'Kling Motion v3 membutuhkan gambar karakter dari device.',
+    expect(validatePayload('kling-v3-motion-control-std', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
+      'Motion control membutuhkan gambar karakter dari device.',
     );
-    expect(validatePayload('motion', { imageUrl: 'data:image/png;base64,aaaa', videoUrl: '' })).toBe(
-      'Kling Motion v3 membutuhkan video gerakan dari device.',
+    expect(validatePayload('kling-v3-motion-control-std', { imageUrl: 'data:image/png;base64,aaaa', videoUrl: '' })).toBe(
+      'Motion control membutuhkan video gerakan dari device.',
     );
   });
 
   it('maps Kling Motion v3 fields to Magnific API body names', () => {
     expect(
-      buildRequestBody('motion', {
+      buildRequestBody('kling-v3-motion-control-std', {
         imageUrl: 'data:image/webp;base64,cat',
         videoUrl: 'data:video/mp4;base64,dance',
         prompt: 'soft fabric movement',
@@ -52,6 +52,45 @@ describe('Magnific payload helpers', () => {
   });
 });
 
+describe('Magnific mode and model catalog', () => {
+  it('groups studio modes into video, motion control, image generation, and image upscale', () => {
+    expect(getMagnificModelsForMode('video').map((model) => model.id)).toContain('kling-v3-omni-std');
+    expect(getMagnificModelsForMode('motion').map((model) => model.id)).toContain('kling-v3-motion-control-std');
+    expect(getMagnificModelsForMode('image').map((model) => model.id)).toEqual(expect.arrayContaining(['mystic', 'flux-2-turbo']));
+    expect(getMagnificModelsForMode('upscale').map((model) => model.id)).toEqual(expect.arrayContaining(['image-upscaler', 'image-upscaler-precision']));
+  });
+
+  it('maps selected Magnific model endpoints into request routes', async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+    try {
+      globalThis.fetch = ((input: RequestInfo | URL) => {
+        requestedUrls.push(String(input));
+        return Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }));
+      }) as typeof fetch;
+
+      await generateVideo('mgf_test', 'mystic', { prompt: 'pink cat' });
+      await generateVideo('mgf_test', 'image-upscaler-precision', { imageUrl: 'data:image/png;base64,aaaa' });
+      await getTaskStatus('mgf_test', 'flux-2-turbo', 'task-2');
+
+      expect(requestedUrls).toEqual([
+        '/api/magnific/v1/ai/mystic',
+        '/api/magnific/v1/ai/image-upscaler-precision',
+        '/api/magnific/v1/ai/text-to-image/flux-2-turbo/task-2',
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('chooses the first Magnific model available for a mode', () => {
+    expect(getDefaultModelForMode('video')).toBe('kling-v3-omni-std');
+    expect(getDefaultModelForMode('motion')).toBe('kling-v3-motion-control-std');
+    expect(getDefaultModelForMode('image')).toBe('mystic');
+    expect(getDefaultModelForMode('upscale')).toBe('image-upscaler');
+  });
+});
+
 describe('generate history cache', () => {
   beforeEach(() => {
     localStorage.clear();
@@ -59,7 +98,7 @@ describe('generate history cache', () => {
 
   it('keeps generated tasks for 24 hours only', () => {
     const now = 1_700_000_000_000;
-    cacheHistoryItem('omni', { task_id: 'task-1', status: 'CREATED' }, 'pink cat', now);
+    cacheHistoryItem('kling-v3-omni-std', { task_id: 'task-1', status: 'CREATED' }, 'pink cat', now);
 
     expect(getCachedHistory(now + 23 * 60 * 60 * 1000)).toHaveLength(1);
     expect(getCachedHistory(now + 25 * 60 * 60 * 1000)).toHaveLength(0);
@@ -71,7 +110,7 @@ describe('Magnific network failures', () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
 
-    const result = await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' });
+    const result = await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' });
 
     expect(result).toEqual({
       ok: false,
@@ -92,7 +131,7 @@ describe('Magnific request routing', () => {
       return Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }));
     }) as typeof fetch;
 
-    await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' });
+    await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' });
 
     expect(requestedUrl).toBe('/api/magnific/v1/ai/video/kling-v3-omni-std');
 
@@ -110,8 +149,8 @@ describe('Generate retry protection', () => {
     try {
       globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
 
-      await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_000_000);
-      const result = await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_010_000);
+      await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
+      const result = await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_010_000);
 
       expect(result).toEqual({
         ok: false,
@@ -127,9 +166,9 @@ describe('Generate retry protection', () => {
     try {
       globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }))) as typeof fetch;
 
-      await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_000_000);
+      await generateVideo('mgf_test', 'kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_000_000);
 
-      expect(getPendingGenerate('omni', { prompt: 'pink cat' }, 1_700_000_010_000)).toBeNull();
+      expect(getPendingGenerate('kling-v3-omni-std', { prompt: 'pink cat' }, 1_700_000_010_000)).toBeNull();
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -148,7 +187,7 @@ describe('Automatic status polling helpers', () => {
         data: { task_id: 'task-1', status: 'COMPLETED', generated: ['https://cdn.example.com/video.mp4'] },
       }), { status: 200 }))) as typeof fetch;
 
-      const result = await getTaskStatus('mgf_test', 'omni', 'task-1');
+      const result = await getTaskStatus('mgf_test', 'kling-v3-omni-std', 'task-1');
 
       expect(result).toEqual({
         ok: true,

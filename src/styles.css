@@ -107,9 +107,9 @@ button:disabled { cursor: not-allowed; opacity: 0.65; }
 
 h1 {
   font-family: 'Fraunces', serif;
-  font-size: clamp(3.15rem, 17vw, 6.25rem);
-  line-height: 0.88;
-  letter-spacing: -0.06em;
+  font-size: clamp(2.55rem, 13.4vw, 5.85rem);
+  line-height: 0.94;
+  letter-spacing: -0.045em;
   margin: 0 auto;
   max-width: 10ch;
 }
