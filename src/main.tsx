@@ -20,8 +20,11 @@ const modelCopy: Record<ModelId, { title: string }> = {
   omni: { title: 'Kling 3 Omni' },
   motion: { title: 'Kling Motion v3' },
 };
+const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000];
+const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
-function App() {
+
+export default function App() {
   const [apiKey, setApiKey] = useState('');
   const [model, setModel] = useState<ModelId>('omni');
   const [prompt, setPrompt] = useState('A tiny white cat astronaut drifts through a pastel pink nebula, cinematic soft light');
@@ -104,25 +107,41 @@ function App() {
     }
 
     setTask(result.data);
+    void pollTaskUntilFinished(result.data.task_id, model, prompt);
     setTaskId(result.data.task_id);
     setHistory(cacheHistoryItem(model, result.data, prompt));
     setMessage('Task dibuat. History tersimpan 24 jam.');
   }
 
-  async function handleCheckStatus() {
-    setLoading(true);
-    setMessage('');
-    const result = await getTaskStatus(apiKey, model, taskId);
-    setLoading(false);
+  async function pollTaskUntilFinished(nextTaskId: string, nextModel: ModelId, nextPrompt: string) {
+    for (const delay of AUTO_POLL_DELAYS_MS) {
+      if (delay > 0) await wait(delay);
+      const result = await getTaskStatus(apiKey, nextModel, nextTaskId);
+      if (!result.ok || !result.data) {
+        setMessage(result.message ?? 'Task sudah dibuat, tapi status otomatis belum bisa dibaca. Cek history Magnific kalau hasil belum muncul.');
+        return;
+      }
 
-    if (!result.ok || !result.data) {
-      setMessage(result.message ?? 'Gagal membaca status task.');
-      return;
+      setTask(result.data);
+      setTaskId(result.data.task_id);
+      setHistory(updateCachedHistoryTask(nextModel, result.data));
+
+      if (result.data.generated?.length) {
+        setMessage('Video selesai. Hasil muncul di history.');
+        return;
+      }
+
+      if (FINAL_STATUSES.has(result.data.status)) {
+        setMessage(result.data.status === 'FAILED' ? 'Generate gagal di Magnific. Limit tidak akan diklik ulang otomatis.' : 'Video selesai, tapi URL hasil belum dikirim Magnific.');
+        return;
+      }
     }
 
-    setTask(result.data);
-    setHistory(updateCachedHistoryTask(model, result.data));
-    setMessage(`Status terbaru: ${result.data.status}.`);
+    setMessage('Task masih diproses Magnific. Meowversee akan menampilkan hasil saat status dicek ulang dari history.');
+  }
+
+  function wait(ms: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function renderImagePreview(label: string, url: string) {
@@ -298,12 +317,7 @@ function App() {
         </section>
 
         <aside className="panel result-panel">
-          <div className="section-title"><Film size={20} /> Hasil task</div>
-          <label>
-            Task ID
-            <input value={taskId} onChange={(event) => setTaskId(event.target.value)} placeholder="Task ID dari Magnific" />
-          </label>
-          <button type="button" className="secondary-button" onClick={handleCheckStatus} disabled={loading}>Cek status</button>
+          <div className="section-title"><Film size={20} /> History hasil</div>
           {message && <p className="message" role="status">{message}</p>}
           {task && (
             <div className="task-card">
@@ -342,4 +356,5 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<App />);
+const root = document.getElementById('root');
+if (root) createRoot(root).render(<App />);

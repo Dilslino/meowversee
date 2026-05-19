@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, getPendingGenerate, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -130,6 +130,30 @@ describe('Generate retry protection', () => {
       await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_000_000);
 
       expect(getPendingGenerate('omni', { prompt: 'pink cat' }, 1_700_000_010_000)).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('Automatic status polling helpers', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('reads completed task video URLs from Magnific through the proxy', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({
+        data: { task_id: 'task-1', status: 'COMPLETED', generated: ['https://cdn.example.com/video.mp4'] },
+      }), { status: 200 }))) as typeof fetch;
+
+      const result = await getTaskStatus('mgf_test', 'omni', 'task-1');
+
+      expect(result).toEqual({
+        ok: true,
+        data: { task_id: 'task-1', status: 'COMPLETED', generated: ['https://cdn.example.com/video.mp4'] },
+      });
     } finally {
       globalThis.fetch = originalFetch;
     }
