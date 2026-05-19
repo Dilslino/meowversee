@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, generateVideo, getCachedHistory, getPendingGenerate, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -84,6 +84,7 @@ describe('Magnific network failures', () => {
 
 describe('Magnific request routing', () => {
   it('uses the local proxy path so browser requests are same-origin', async () => {
+    localStorage.clear();
     const originalFetch = globalThis.fetch;
     let requestedUrl = '';
     globalThis.fetch = ((input: RequestInfo | URL) => {
@@ -96,5 +97,41 @@ describe('Magnific request routing', () => {
     expect(requestedUrl).toBe('/api/magnific/v1/ai/video/kling-v3-omni-std');
 
     globalThis.fetch = originalFetch;
+  });
+});
+
+describe('Generate retry protection', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('blocks repeated identical generate attempts after an uncertain network failure', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (() => Promise.reject(new TypeError('Failed to fetch'))) as typeof fetch;
+
+      await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_000_000);
+      const result = await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_010_000);
+
+      expect(result).toEqual({
+        ok: false,
+        message: 'Generate yang sama baru saja dikirim dan statusnya belum pasti. Jangan klik ulang karena bisa memotong limit lagi. Tunggu beberapa menit, lalu cek history/task di dashboard Magnific.',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('clears retry protection when Magnific returns a task id', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (() => Promise.resolve(new Response(JSON.stringify({ task_id: 'task-1', status: 'CREATED' }), { status: 200 }))) as typeof fetch;
+
+      await generateVideo('mgf_test', 'omni', { prompt: 'pink cat' }, 1_700_000_000_000);
+
+      expect(getPendingGenerate('omni', { prompt: 'pink cat' }, 1_700_000_010_000)).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

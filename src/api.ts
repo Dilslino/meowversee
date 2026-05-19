@@ -28,6 +28,12 @@ export type CachedHistoryItem = {
   createdAt: number;
   expiresAt: number;
 };
+type PendingGenerate = {
+  key: string;
+  createdAt: number;
+  expiresAt: number;
+};
+
 
 export type ApiResult<T> = {
   ok: boolean;
@@ -39,6 +45,9 @@ const BASE_URL = '/api/magnific';
 const HISTORY_KEY = 'meowversee:generate-history';
 const HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_HISTORY_ITEMS = 12;
+const PENDING_GENERATE_KEY = 'meowversee:pending-generate';
+const PENDING_GENERATE_TTL_MS = 10 * 60 * 1000;
+const PENDING_GENERATE_MESSAGE = 'Generate yang sama baru saja dikirim dan statusnya belum pasti. Jangan klik ulang karena bisa memotong limit lagi. Tunggu beberapa menit, lalu cek history/task di dashboard Magnific.';
 const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
 
 
@@ -155,14 +164,23 @@ export async function generateVideo(
   apiKey: string,
   model: ModelId,
   payload: GeneratePayload,
+  now = Date.now(),
 ): Promise<ApiResult<MagnificTask>> {
   const validation = validatePayload(model, payload);
   if (validation) return { ok: false, message: validation };
 
-  return requestTask(endpoints[model].create, apiKey, {
+  const body = buildRequestBody(model, payload);
+  const pending = getPendingGenerate(model, payload, now);
+  if (pending) return { ok: false, message: PENDING_GENERATE_MESSAGE };
+
+  writePendingGenerate({ key: buildGenerateKey(model, body), createdAt: now, expiresAt: now + PENDING_GENERATE_TTL_MS });
+  const result = await requestTask(endpoints[model].create, apiKey, {
     method: 'POST',
-    body: JSON.stringify(buildRequestBody(model, payload)),
+    body: JSON.stringify(body),
   });
+
+  if (result.ok) clearPendingGenerate();
+  return result;
 }
 
 export async function getTaskStatus(
@@ -239,6 +257,44 @@ function extractMessage(value: unknown): string | null {
   if (typeof value === 'string') return value;
   const root = asRecord(value);
   return readString(root?.message) ?? readString(asRecord(root?.problem)?.message) ?? null;
+}
+
+export function getPendingGenerate(model: ModelId, payload: GeneratePayload, now = Date.now()): PendingGenerate | null {
+  const raw = window.localStorage.getItem(PENDING_GENERATE_KEY);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const item = asRecord(parsed);
+    if (typeof item?.key !== 'string' || typeof item?.createdAt !== 'number' || typeof item?.expiresAt !== 'number') {
+      clearPendingGenerate();
+      return null;
+    }
+
+    if (item.expiresAt <= now) {
+      clearPendingGenerate();
+      return null;
+    }
+
+    return item.key === buildGenerateKey(model, buildRequestBody(model, payload))
+      ? { key: item.key, createdAt: item.createdAt, expiresAt: item.expiresAt }
+      : null;
+  } catch {
+    clearPendingGenerate();
+    return null;
+  }
+}
+
+function writePendingGenerate(item: PendingGenerate): void {
+  window.localStorage.setItem(PENDING_GENERATE_KEY, JSON.stringify(item));
+}
+
+function clearPendingGenerate(): void {
+  window.localStorage.removeItem(PENDING_GENERATE_KEY);
+}
+
+function buildGenerateKey(model: ModelId, body: Record<string, unknown>): string {
+  return `${model}:${JSON.stringify(body)}`;
 }
 
 function compact(input: Record<string, unknown>): Record<string, unknown> {
