@@ -50,6 +50,70 @@ describe('Magnific payload helpers', () => {
       cfg_scale: 0.7,
     });
   });
+
+  it('hosts motion-control device uploads before submitting to Magnific', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; body: unknown }> = [];
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ url: `https://files.example.com/${calls.length}` }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ task_id: 'task-motion', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const result = await generateVideo('kling-v3-motion-control-std', {
+        imageUrl: 'data:image/png;base64,Y2F0',
+        videoUrl: 'data:video/mp4;base64,ZGFuY2U=',
+      });
+
+      expect(result.ok).toBe(true);
+      expect(calls.map((call) => call.url)).toEqual([
+        '/api/upload',
+        '/api/upload',
+        '/api/magnific/v1/ai/video/kling-v3-motion-control-std',
+      ]);
+      expect(calls[2].body).toMatchObject({
+        image_url: 'https://files.example.com/1',
+        video_url: 'https://files.example.com/2',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('hosts video image and reference uploads before submitting to Magnific', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; body: unknown }> = [];
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ url: String(input), body: init?.body ? JSON.parse(String(init.body)) : null });
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ url: `https://files.example.com/${calls.length}` }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ task_id: 'task-video', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      await generateVideo('kling-v3-omni-std', {
+        prompt: 'cat dance with @Image1',
+        imageUrl: 'data:image/png;base64,Y2F0',
+        referenceImageUrls: ['data:image/png;base64,cmVm'],
+      });
+
+      expect(calls.map((call) => call.url)).toEqual([
+        '/api/upload',
+        '/api/upload',
+        '/api/magnific/v1/ai/video/kling-v3-omni-std',
+      ]);
+      expect(calls[2].body).toMatchObject({
+        image_url: 'https://files.example.com/1',
+        image_urls: ['https://files.example.com/2'],
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 describe('Magnific mode and model catalog', () => {

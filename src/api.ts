@@ -281,8 +281,8 @@ export async function generateVideo(
   const validation = validatePayload(model, payload);
   if (validation) return { ok: false, message: validation };
 
-  const body = buildRequestBody(model, payload);
-  const pending = getPendingGenerate(model, payload, now);
+  const body = await buildHostedRequestBody(model, payload);
+  const pending = getPendingGenerate(model, body, now);
   if (pending) return { ok: false, message: PENDING_GENERATE_MESSAGE };
 
   writePendingGenerate({ key: buildGenerateKey(model, body), createdAt: now, expiresAt: now + PENDING_GENERATE_TTL_MS });
@@ -365,7 +365,7 @@ function extractMessage(value: unknown): string | null {
   return readString(root?.message) ?? readString(asRecord(root?.problem)?.message) ?? null;
 }
 
-export function getPendingGenerate(model: ModelId, payload: GeneratePayload, now = Date.now()): PendingGenerate | null {
+export function getPendingGenerate(model: ModelId, payloadOrBody: GeneratePayload | Record<string, unknown>, now = Date.now()): PendingGenerate | null {
   const raw = window.localStorage.getItem(PENDING_GENERATE_KEY);
   if (!raw) return null;
 
@@ -382,7 +382,7 @@ export function getPendingGenerate(model: ModelId, payload: GeneratePayload, now
       return null;
     }
 
-    return item.key === buildGenerateKey(model, buildRequestBody(model, payload))
+    return item.key === buildGenerateKey(model, normalizeGenerateKeyBody(model, payloadOrBody))
       ? { key: item.key, createdAt: item.createdAt, expiresAt: item.expiresAt }
       : null;
   } catch {
@@ -401,6 +401,52 @@ function clearPendingGenerate(): void {
 
 function buildGenerateKey(model: ModelId, body: Record<string, unknown>): string {
   return `${model}:${JSON.stringify(body)}`;
+}
+
+function normalizeGenerateKeyBody(model: ModelId, payloadOrBody: GeneratePayload | Record<string, unknown>): Record<string, unknown> {
+  if ('imageUrl' in payloadOrBody || 'videoUrl' in payloadOrBody || 'startImageUrl' in payloadOrBody || 'referenceImageUrls' in payloadOrBody) {
+    return buildRequestBody(model, payloadOrBody as GeneratePayload);
+  }
+  return payloadOrBody;
+}
+
+async function buildHostedRequestBody(model: ModelId, payload: GeneratePayload): Promise<Record<string, unknown>> {
+  return buildRequestBody(model, await hostDeviceUploads(model, payload));
+}
+
+async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Promise<GeneratePayload> {
+  const next: GeneratePayload = { ...payload };
+
+  if (usesPublicImageUrl(model) && isDataUrl(next.imageUrl)) next.imageUrl = await uploadDataUrl(next.imageUrl, 'meowversee-image');
+  if (model === 'kling-v3-omni-std' && isDataUrl(next.startImageUrl)) next.startImageUrl = await uploadDataUrl(next.startImageUrl, 'meowversee-start-frame');
+  if (model === 'kling-v3-omni-std' && isDataUrl(next.endImageUrl)) next.endImageUrl = await uploadDataUrl(next.endImageUrl, 'meowversee-end-frame');
+  if (model === 'kling-v3-motion-control-std' && isDataUrl(next.videoUrl)) next.videoUrl = await uploadDataUrl(next.videoUrl, 'meowversee-motion-video');
+  if (model === 'kling-v3-omni-std' && next.referenceImageUrls?.length) {
+    next.referenceImageUrls = await Promise.all(next.referenceImageUrls.map((url, index) => isDataUrl(url) ? uploadDataUrl(url, `meowversee-reference-${index + 1}`) : url));
+  }
+
+  return next;
+}
+
+function usesPublicImageUrl(model: ModelId): boolean {
+  return model === 'kling-v3-omni-std' || model === 'kling-v3-motion-control-std';
+}
+
+function isDataUrl(value: string | undefined): value is string {
+  return typeof value === 'string' && value.trim().startsWith('data:');
+}
+
+async function uploadDataUrl(dataUrl: string, filename: string): Promise<string> {
+  const response = await fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataUrl, filename }),
+  });
+  const json = await readJson(response);
+  if (!response.ok) throw new Error(extractMessage(json) ?? 'Upload file dari device gagal.');
+  const url = readString(asRecord(json)?.url);
+  if (!url) throw new Error('Upload file tidak mengembalikan URL publik.');
+  return url;
 }
 
 function compact(input: Record<string, unknown>): Record<string, unknown> {
