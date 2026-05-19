@@ -257,6 +257,10 @@ export default function App() {
         <div className="hero-grid">
           <div className="hero-center">
             <h1 id="hero-title">meowversee studio</h1>
+            <div className="hero-marquee" aria-label="Catatan hasil AI">
+              <span>• Hasil mungkin bervariasi tergantung prompt, kualitas gambar, model yang dipilih •</span>
+              <span aria-hidden="true">• Hasil mungkin bervariasi tergantung prompt, kualitas gambar, model yang dipilih •</span>
+            </div>
           </div>
         </div>
       </section>

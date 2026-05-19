@@ -120,6 +120,35 @@ h1 {
   max-width: 860px;
 }
 
+.hero-marquee {
+  display: flex;
+  gap: 20px;
+  width: min(100%, 520px);
+  margin: 14px auto 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: clamp(0.72rem, 2.8vw, 0.86rem);
+  font-weight: 850;
+  letter-spacing: 0.01em;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.hero-marquee span {
+  flex: 0 0 auto;
+  min-width: 100%;
+  animation: marquee-scroll 16s linear infinite;
+  white-space: nowrap;
+}
+
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(calc(-100% - 20px)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-marquee span { animation: none; }
+}
+
 
 .video-link,
 .tutorial-card a {
