@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, formatElapsedTime, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -170,5 +170,15 @@ describe('Automatic polling cadence', () => {
     expect(getAutoPollDelay(5)).toBe(30_000);
     expect(getAutoPollDelay(6)).toBe(30_000);
     expect(getAutoPollDelay(25)).toBe(30_000);
+  });
+});
+
+describe('Elapsed time formatting', () => {
+  it('formats seconds minutes and hours for generated tasks', () => {
+    expect(formatElapsedTime(0)).toBe('0 detik');
+    expect(formatElapsedTime(59_000)).toBe('59 detik');
+    expect(formatElapsedTime(60_000)).toBe('1 menit 0 detik');
+    expect(formatElapsedTime(125_000)).toBe('2 menit 5 detik');
+    expect(formatElapsedTime(3_725_000)).toBe('1 jam 2 menit 5 detik');
   });
 });

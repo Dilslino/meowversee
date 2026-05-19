@@ -165,6 +165,17 @@ export function getAutoPollDelay(attemptIndex: number): number {
   return AUTO_POLL_DELAYS_MS[Math.min(Math.max(0, attemptIndex), AUTO_POLL_DELAYS_MS.length - 1)];
 }
 
+export function formatElapsedTime(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) return `${hours} jam ${minutes} menit ${seconds} detik`;
+  if (minutes > 0) return `${minutes} menit ${seconds} detik`;
+  return `${seconds} detik`;
+}
+
 export async function generateVideo(
   apiKey: string,
   model: ModelId,

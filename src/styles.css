@@ -380,6 +380,16 @@ select:focus {
   color: var(--muted);
 }
 
+.elapsed-time {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: #fff7fb;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
 .status {
   width: fit-content;
   border-radius: 999px;

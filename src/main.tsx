@@ -8,6 +8,7 @@ import {
   MagnificTask,
   ModelId,
   cacheHistoryItem,
+  formatElapsedTime,
   generateVideo,
   getAutoPollDelay,
   getCachedHistory,
@@ -44,11 +45,19 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [history, setHistory] = useState<CachedHistoryItem[]>([]);
+  const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
     setApiKey(getStoredApiKey());
     setHistory(getCachedHistory());
   }, []);
+
+  useEffect(() => {
+    if (generationStartedAt === null || task?.status === 'COMPLETED' || task?.status === 'FAILED') return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [generationStartedAt, task?.status]);
 
   const maskedKey = useMemo(() => (apiKey ? `${apiKey.slice(0, 6)}••••${apiKey.slice(-4)}` : 'Belum tersimpan'), [apiKey]);
   const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0) + (endImageUrl ? 1 : 0);
@@ -107,14 +116,17 @@ export default function App() {
       return;
     }
 
+    const startedAt = Date.now();
+    setGenerationStartedAt(startedAt);
+    setNow(startedAt);
     setTask(result.data);
-    void pollTaskUntilFinished(result.data.task_id, model, prompt);
+    void pollTaskUntilFinished(result.data.task_id, model, startedAt);
     setTaskId(result.data.task_id);
     setHistory(cacheHistoryItem(model, result.data, prompt));
-    setMessage('Task dibuat. History tersimpan 24 jam.');
+    setMessage('Task dibuat. Timer berjalan, Meowversee cek otomatis.');
   }
 
-  async function pollTaskUntilFinished(nextTaskId: string, nextModel: ModelId, nextPrompt: string) {
+  async function pollTaskUntilFinished(nextTaskId: string, nextModel: ModelId, startedAt: number) {
     for (let attempt = 0; attempt < MAX_AUTO_POLL_ATTEMPTS; attempt += 1) {
       const delay = getAutoPollDelay(attempt);
       if (delay > 0) await wait(delay);
@@ -129,6 +141,7 @@ export default function App() {
       setHistory(updateCachedHistoryTask(nextModel, result.data));
 
       if (result.data.generated?.length) {
+        setNow(Date.now());
         setMessage('Video selesai. Hasil muncul di history.');
         return;
       }
@@ -138,7 +151,7 @@ export default function App() {
         return;
       }
 
-      setMessage(`Status terbaru: ${result.data.status}. Meowversee masih cek otomatis.`);
+      setMessage(`Status terbaru: ${result.data.status}. Sudah berjalan ${formatElapsedTime(Date.now() - startedAt)}. Meowversee masih cek otomatis.`);
     }
 
     setMessage('Task masih diproses lama oleh Magnific. Buka lagi nanti, history tetap tersimpan 24 jam.');
@@ -327,6 +340,9 @@ export default function App() {
             <div className="task-card">
               <span className={`status ${task.status.toLowerCase()}`}>{task.status}</span>
               <code>{task.task_id}</code>
+              {generationStartedAt !== null && (
+                <span className="elapsed-time">Berjalan {formatElapsedTime(now - generationStartedAt)}</span>
+              )}
               {task.generated?.map((url) => (
                 <a key={url} href={url} target="_blank" rel="noreferrer" className="video-link">Buka hasil video <ExternalLink size={15} /></a>
               ))}
