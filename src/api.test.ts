@@ -146,8 +146,8 @@ describe('Magnific payload helpers', () => {
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
-        if (String(input) === '/api/upload') {
-          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${calls.length}.png` }), { status: 200 });
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
+          return new Response(JSON.stringify({ status: 'success', data: { url: `https://tmpfiles.org/${calls.length}/upload.png` } }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-motion', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -159,13 +159,13 @@ describe('Magnific payload helpers', () => {
 
       expect(result.ok).toBe(true);
       expect(calls.map((call) => call.url)).toEqual([
-        '/api/upload',
-        '/api/upload',
+        'https://tmpfiles.org/api/v1/upload',
+        'https://tmpfiles.org/api/v1/upload',
         '/api/magnific/v1/ai/video/kling-v3-motion-control-std',
       ]);
       expect(calls[2].body).toMatchObject({
-        image_url: 'https://files.catbox.moe/1.png',
-        video_url: 'https://files.catbox.moe/2.png',
+        image_url: 'https://tmpfiles.org/dl/1/upload.png',
+        video_url: 'https://tmpfiles.org/dl/2/upload.png',
       });
     } finally {
       globalThis.fetch = originalFetch;
@@ -177,9 +177,9 @@ describe('Magnific payload helpers', () => {
     let uploadCalls = 0;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === '/api/upload') {
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
           uploadCalls += 1;
-          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${uploadCalls}.mp4` }), { status: 200 });
+          return new Response(JSON.stringify({ status: 'success', data: { url: `https://tmpfiles.org/${uploadCalls}/upload.mp4` } }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-motion-large', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -201,7 +201,7 @@ describe('Magnific payload helpers', () => {
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL) => {
-        if (String(input) === '/api/upload') {
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
           return new Response(JSON.stringify({ message: 'Upload file gagal.' }), { status: 502 });
         }
         return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
@@ -218,12 +218,12 @@ describe('Magnific payload helpers', () => {
     }
   });
 
-  it('uploads device files through the same-origin upload proxy to avoid browser CORS failures', async () => {
+  it('uploads device files directly from the browser to avoid serverless payload limits', async () => {
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL) => {
-        if (String(input) === '/api/upload') {
-          return new Response(JSON.stringify({ url: 'https://files.catbox.moe/motion.png' }), { status: 200 });
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
+          return new Response(JSON.stringify({ status: 'success', data: { url: 'https://tmpfiles.org/abc123/motion.png' } }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-upload-proxy', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -238,6 +238,39 @@ describe('Magnific payload helpers', () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it('uploads browser device files directly to tmpfiles to avoid serverless uploader limits', async () => {
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; body: unknown }> = [];
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
+          return new Response(JSON.stringify({ status: 'success', data: { url: 'https://tmpfiles.org/abc123/meowversee-image.png' } }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ task_id: 'task-upload-proxy', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const result = await generateVideo('kling-v3-motion-control-pro', {
+        imageUrl: 'data:image/png;base64,Y2F0',
+        videoUrl: 'https://files.example.com/motion.mp4',
+      });
+
+      expect(result.ok).toBe(true);
+      expect(calls.map((call) => call.url)).toEqual([
+        'https://tmpfiles.org/api/v1/upload',
+        '/api/magnific/v1/ai/video/kling-v3-motion-control-pro',
+      ]);
+      expect(calls[0].body).toBeInstanceOf(FormData);
+      expect(calls[1].body).toMatchObject({
+        image_url: 'https://tmpfiles.org/dl/abc123/meowversee-image.png',
+        video_url: 'https://files.example.com/motion.mp4',
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
 
   it('blocks motion character images above Magnific documented 10 MB limit', async () => {
     const originalFetch = globalThis.fetch;
@@ -291,8 +324,8 @@ describe('Magnific payload helpers', () => {
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
-        if (String(input) === '/api/upload') {
-          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${calls.length}.png` }), { status: 200 });
+        if (String(input) === 'https://tmpfiles.org/api/v1/upload') {
+          return new Response(JSON.stringify({ status: 'success', data: { url: `https://tmpfiles.org/${calls.length}/upload.png` } }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-video', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -304,13 +337,13 @@ describe('Magnific payload helpers', () => {
       });
 
       expect(calls.map((call) => call.url)).toEqual([
-        '/api/upload',
-        '/api/upload',
+        'https://tmpfiles.org/api/v1/upload',
+        'https://tmpfiles.org/api/v1/upload',
         '/api/magnific/v1/ai/video/kling-v3-omni-std',
       ]);
       expect(calls[2].body).toMatchObject({
-        image_url: 'https://files.catbox.moe/1.png',
-        image_urls: ['https://files.catbox.moe/2.png'],
+        image_url: 'https://tmpfiles.org/dl/1/upload.png',
+        image_urls: ['https://tmpfiles.org/dl/2/upload.png'],
       });
     } finally {
       globalThis.fetch = originalFetch;

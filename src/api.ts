@@ -85,6 +85,7 @@ const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
 export const MAX_DEVICE_UPLOAD_BYTES = 18 * 1024 * 1024;
 export const MOTION_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const MOTION_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
+const TMPFILES_UPLOAD_URL = 'https://tmpfiles.org/api/v1/upload';
 
 
 export type MagnificModel = {
@@ -708,16 +709,24 @@ async function uploadDataUrl(dataUrl: string, filename: string, maxBytes = MAX_D
   if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video/audio asli dari galeri.');
   if (byteLength > maxBytes) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${formatBytes(maxBytes)} agar upload tidak ditolak server.`);
 
-  const response = await fetch('/api/upload', {
+  const formData = new FormData();
+  formData.set('file', dataUrlToFile(dataUrl, filename));
+  formData.set('expire', '172800');
+
+  const response = await fetch(TMPFILES_UPLOAD_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, filename: buildUploadFilename(filename, mimeTypeFromDataUrl(dataUrl)) }),
+    body: formData,
   });
   const json = await readJson(response);
   if (!response.ok) throw new Error(extractMessage(json) ?? 'Upload file dari device gagal.');
-  const url = readString(asRecord(json)?.url);
-  if (!url || !isHttpUrl(url)) throw new Error('Upload file tidak mengembalikan URL publik.');
+  const url = normalizeTmpfilesUrl(readString(asRecord(asRecord(json)?.data)?.url));
+  if (!url) throw new Error('Upload file tidak mengembalikan URL publik.');
   return url;
+}
+
+function normalizeTmpfilesUrl(value: string | null): string | null {
+  if (!value || !isHttpUrl(value)) return null;
+  return value.replace('https://tmpfiles.org/', 'https://tmpfiles.org/dl/');
 }
 
 function getDataUrlByteLength(dataUrl: string): number | null {
