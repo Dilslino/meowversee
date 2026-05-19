@@ -23,7 +23,7 @@ import {
   updateCachedHistoryTask,
 } from './api';
 
-const modeOrder: StudioMode[] = ['video', 'motion', 'image', 'upscale'];
+const modeOrder: StudioMode[] = ['video', 'motion', 'voice', 'lipsync', 'image', 'upscale'];
 const MAX_AUTO_POLL_ATTEMPTS = 240;
 const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 
@@ -36,12 +36,20 @@ export default function App() {
   const [startImageUrl, setStartImageUrl] = useState('');
   const [endImageUrl, setEndImageUrl] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [audioUrl, setAudioUrl] = useState('');
   const [referenceImageUrls, setReferenceImageUrls] = useState<string[]>([]);
+  const [negativePrompt, setNegativePrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<GeneratePayload['aspectRatio']>('16:9');
+  const [resolution, setResolution] = useState<GeneratePayload['resolution']>('2K');
   const [duration, setDuration] = useState('5');
   const [generateAudio, setGenerateAudio] = useState(true);
   const [characterOrientation, setCharacterOrientation] = useState<'video' | 'image'>('video');
   const [cfgScale, setCfgScale] = useState(0.5);
+  const [voiceId, setVoiceId] = useState('21m00Tcm4TlvDq8ikWAM');
+  const [voiceStability, setVoiceStability] = useState(0.5);
+  const [voiceSimilarityBoost, setVoiceSimilarityBoost] = useState(0.2);
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
+  const [useSpeakerBoost, setUseSpeakerBoost] = useState(true);
   const [upscaleFactor, setUpscaleFactor] = useState<GeneratePayload['upscaleFactor']>('2x');
   const [upscaleEngine, setUpscaleEngine] = useState<GeneratePayload['upscaleEngine']>('automatic');
   const [taskId, setTaskId] = useState('');
@@ -51,12 +59,13 @@ export default function App() {
   const [history, setHistory] = useState<CachedHistoryItem[]>([]);
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [uploadCounts, setUploadCounts] = useState<Record<'image' | 'start' | 'end' | 'reference' | 'video', number>>({
+  const [uploadCounts, setUploadCounts] = useState<Record<'image' | 'start' | 'end' | 'reference' | 'video' | 'audio', number>>({
     image: 0,
     start: 0,
     end: 0,
     reference: 0,
     video: 0,
+    audio: 0,
   });
 
   useEffect(() => {
@@ -73,9 +82,8 @@ export default function App() {
   const availableModels = getMagnificModelsForMode(mode);
   const selectedModeCopy = MAGNIFIC_MODE_COPY[mode];
 
-  const isKlingV26 = model === 'kling-v2-6-pro';
-  const isClassicImageToVideo = model === 'kling-v2-5-pro' || model === 'wan-v2-6-1080p';
-  const isKlingOmni = model === 'kling-v3-omni-std';
+  const isKlingV3Video = model === 'kling-v3-pro' || model === 'kling-v3-std';
+  const isVeedLipSync = model === 'veed-fabric-1-0-fast' || model === 'veed-fabric-1-0';
   function handleModeChange(nextMode: StudioMode) {
     setMode(nextMode);
     setModel(getDefaultModelForMode(nextMode));
@@ -86,16 +94,18 @@ export default function App() {
 
 
 
-  async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference' | 'video', files: FileList | null) {
+  async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio', files: FileList | null) {
     if (!files?.length) return;
-    const urls = await Promise.all(Array.from(files).slice(0, target === 'reference' ? 4 : 1).map(readFileAsDataUrl));
+    const maxFiles = target === 'reference' ? (mode === 'image' ? 3 : 4) : 1;
+    const urls = await Promise.all(Array.from(files).slice(0, maxFiles).map(readFileAsDataUrl));
 
     setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
     if (target === 'image') setImageUrl(urls[0]);
     if (target === 'start') setStartImageUrl(urls[0]);
     if (target === 'end') setEndImageUrl(urls[0]);
     if (target === 'video') setVideoUrl(urls[0]);
-    if (target === 'reference') setReferenceImageUrls(urls.slice(0, 4));
+    if (target === 'audio') setAudioUrl(urls[0]);
+    if (target === 'reference') setReferenceImageUrls(urls.slice(0, maxFiles));
   }
 
   function readFileAsDataUrl(file: File): Promise<string> {
@@ -114,16 +124,24 @@ export default function App() {
 
     const payload: GeneratePayload = {
       prompt,
+      negativePrompt,
       imageUrl,
       startImageUrl,
       endImageUrl,
       videoUrl,
+      audioUrl,
       referenceImageUrls,
       aspectRatio,
+      resolution,
       duration,
       generateAudio,
       characterOrientation,
       cfgScale,
+      voiceId,
+      voiceStability,
+      voiceSimilarityBoost,
+      voiceSpeed,
+      useSpeakerBoost,
       upscaleFactor,
       upscaleEngine,
     };
@@ -201,8 +219,8 @@ export default function App() {
     );
   }
 
-  function getResultKind(itemModel: ModelId): 'video' | 'image' {
-    return itemModel === 'kling-v3-omni-std' || itemModel === 'kling-v3-motion-control-std' || itemModel === 'kling-v2-6-pro' || itemModel === 'kling-v2-5-pro' || itemModel === 'wan-v2-6-1080p' ? 'video' : 'image';
+  function getResultKind(itemModel: ModelId): 'video' | 'image' | 'audio' {
+    return itemModel === 'elevenlabs-turbo-v2-5' ? 'audio' : itemModel === 'kling-v3-pro' || itemModel === 'kling-v3-std' || itemModel === 'kling-v3-omni-std' || itemModel === 'kling-v3-motion-control-std' || itemModel === 'kling-v3-motion-control-pro' || itemModel === 'kling-v2-6-motion-control-std' || itemModel === 'kling-v2-6-motion-control-pro' || itemModel === 'veed-fabric-1-0-fast' || itemModel === 'veed-fabric-1-0' || itemModel === 'latent-sync' || itemModel === 'kling-v2-6-pro' || itemModel === 'kling-v2-5-pro' || itemModel === 'wan-v2-6-1080p' ? 'video' : 'image';
   }
 
   function getBeforeImageForHistory(itemModel: ModelId): string {
@@ -210,11 +228,10 @@ export default function App() {
   }
 
   function renderResultPreview(url: string, itemModel: ModelId, label: string) {
-    return getResultKind(itemModel) === 'video' ? (
-      <video src={url} controls muted playsInline />
-    ) : (
-      <img src={url} alt={label} />
-    );
+    const kind = getResultKind(itemModel);
+    if (kind === 'video') return <video src={url} controls muted playsInline />;
+    if (kind === 'audio') return <audio src={url} controls />;
+    return <img src={url} alt={label} />;
   }
 
   function renderUpscaleCompare(beforeUrl: string, afterUrl: string) {
@@ -231,20 +248,21 @@ export default function App() {
   }
 
   function renderUploadControl(
-    target: 'image' | 'start' | 'end' | 'reference' | 'video',
+    target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio',
     label: string,
     accept: string,
     multiple = false,
     wide = false,
     note = `Maks ${Math.floor(MAX_DEVICE_UPLOAD_BYTES / (1024 * 1024))} MB per file`,
+    action = 'Klik atau drag file di sini',
   ) {
     return (
       <label className={wide ? 'upload-card wide' : 'upload-card'}>
         <ImagePlus size={18} aria-hidden="true" />
         <span className="upload-title">{label}</span>
-        <span className="upload-pill">Pilih dari device</span>
-        <span className="upload-selected">{formatUploadSelection(uploadCounts[target])}</span>
         <span className="upload-limit">{note}</span>
+        <span className="upload-pill">{action}</span>
+        <span className="upload-selected">{formatUploadSelection(uploadCounts[target])}</span>
         <input type="file" accept={accept} multiple={multiple} onChange={(event) => void handleImageUpload(target, event.target.files)} />
       </label>
     );
@@ -298,66 +316,41 @@ export default function App() {
 
             {mode === 'video' ? (
               <>
-                <div className="mode-hint wide">
-                  {isKlingV26
-                    ? 'Kling 2.6 Pro paling aman untuk text-to-video dan image-to-video. Isi prompt saja untuk text-to-video, atau upload image utama untuk image-to-video.'
-                    : isClassicImageToVideo
-                      ? 'Model ini image-to-video: upload image utama, lalu tulis gerakan/camera move di prompt.'
-                      : 'Kling 3 Omni tetap tersedia untuk video advanced dengan start/end frame dan referensi.'}
-                </div>
-                {renderUploadControl('image', isKlingV26 ? 'Upload image utama (opsional)' : 'Upload image utama', 'image/png,image/jpeg,image/webp')}
-                {renderImagePreview('Image utama', imageUrl)}
-                {isKlingOmni && (
-                  <>
-                    {renderUploadControl('start', 'Upload start frame', 'image/png,image/jpeg,image/webp')}
-                    {renderImagePreview('Start frame', startImageUrl)}
-                    {renderUploadControl('end', 'Upload end frame', 'image/png,image/jpeg,image/webp')}
-                    {renderImagePreview('End frame', endImageUrl)}
-                    {renderUploadControl('reference', 'Foto referensi style / karakter (maks 4)', 'image/png,image/jpeg,image/webp', true, true)}
-                    {referenceImageUrls.length > 0 && (
-                      <div className="preview-grid wide" aria-label="Preview foto referensi">
-                        {referenceImageUrls.map((url, index) => renderImagePreview(`Referensi ${index + 1}`, url))}
-                      </div>
-                    )}
-                    <div className="upload-note wide">{imagePreviewCount} image siap dipakai dari device.</div>
-                  </>
-                )}
+                <div className="mode-hint wide">Kling 3 Pro untuk kualitas terbaik, Kling 3 Standard untuk proses lebih ringan. Prompt wajib, start/end image opsional.</div>
+                {renderUploadControl('start', 'Start Image', 'image/png,image/jpeg,image/webp', false, false, 'Opsional', 'Gambar awal (opsional)')}
+                {renderImagePreview('Start Image', startImageUrl)}
+                {renderUploadControl('end', 'End Image', 'image/png,image/jpeg,image/webp', false, false, 'Opsional', 'Gambar akhir (opsional)')}
+                {renderImagePreview('End Image', endImageUrl)}
+                <label className="wide">
+                  Negative Prompt <span className="optional-label">Opsional</span>
+                  <textarea value={negativePrompt} onChange={(event) => setNegativePrompt(event.target.value)} maxLength={2500} rows={3} placeholder="Hal yang ingin dihindari: blur, low quality..." />
+                </label>
                 <label>
                   Aspect ratio
                   <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
-                    <option value="widescreen_16_9">16:9 Landscape</option>
-                    <option value="social_story_9_16">9:16 Portrait</option>
-                    <option value="square_1_1">1:1 Square</option>
-                    {isKlingOmni && <option value="auto">Auto</option>}
+                    <option value="1:1">1:1</option>
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
                   </select>
                 </label>
                 <label>
                   Durasi
                   <select value={duration} onChange={(event) => setDuration(event.target.value)}>
-                    {(model === 'wan-v2-6-1080p' ? ['5', '10', '15'] : isKlingOmni ? Array.from({ length: 13 }, (_, index) => String(index + 3)) : ['5', '10']).map((item) => (
-                      <option key={item} value={item}>{item} detik</option>
-                    ))}
+                    {Array.from({ length: 13 }, (_, index) => String(index + 3)).map((item) => <option key={item} value={item}>{item} detik</option>)}
                   </select>
                 </label>
-                {(isKlingV26 || isKlingOmni) && (
-                  <label className="switch-row">
-                    <input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} />
-                    Generate audio native
-                  </label>
-                )}
-                {(isKlingV26 || model === 'kling-v2-5-pro') && (
-                  <label>
-                    CFG scale: {cfgScale.toFixed(1)}
-                    <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
-                  </label>
-                )}
+                <label>
+                  CFG scale: {cfgScale.toFixed(1)}
+                  <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
+                </label>
               </>
             ) : mode === 'motion' ? (
               <>
-                {renderUploadControl('image', 'Upload character image', 'image/png,image/jpeg,image/webp')}
-                {renderImagePreview('Character image', imageUrl)}
-                {renderUploadControl('video', 'Upload motion video', 'video/mp4,video/webm,video/quicktime')}
-                {renderVideoPreview('Motion video', videoUrl)}
+                {renderUploadControl('image', 'Gambar Referensi', 'image/png,image/jpeg,image/webp', false, false, 'Wajib — maks 15 MB', 'Klik atau drag gambar di sini')}
+                {renderImagePreview('Gambar Referensi', imageUrl)}
+                {renderUploadControl('video', 'Video Referensi', 'video/mp4,video/webm,video/quicktime', false, false, 'Wajib — maks 100 MB', 'Klik atau drag video di sini')}
+                {renderVideoPreview('Video Referensi', videoUrl)}
+                <div className="mode-hint wide">Gunakan video referensi dari TikTok agar ukurannya kecil</div>
                 <label>
                   Orientasi karakter
                   <select value={characterOrientation} onChange={(event) => setCharacterOrientation(event.target.value as 'video' | 'image')}>
@@ -370,22 +363,52 @@ export default function App() {
                   <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
                 </label>
               </>
+            ) : mode === 'voice' ? (
+              <>
+                <label className="wide">
+                  Voice ID
+                  <input value={voiceId} onChange={(event) => setVoiceId(event.target.value)} placeholder="ElevenLabs voice ID" />
+                </label>
+                <label>Stability: {voiceStability.toFixed(1)}<input type="range" min="0" max="1" step="0.1" value={voiceStability} onChange={(event) => setVoiceStability(Number(event.target.value))} /></label>
+                <label>Similarity: {voiceSimilarityBoost.toFixed(1)}<input type="range" min="0" max="1" step="0.1" value={voiceSimilarityBoost} onChange={(event) => setVoiceSimilarityBoost(Number(event.target.value))} /></label>
+                <label>Speed: {voiceSpeed.toFixed(1)}<input type="range" min="0.7" max="1.2" step="0.1" value={voiceSpeed} onChange={(event) => setVoiceSpeed(Number(event.target.value))} /></label>
+                <label className="switch-row"><input type="checkbox" checked={useSpeakerBoost} onChange={(event) => setUseSpeakerBoost(event.target.checked)} /> Speaker boost</label>
+              </>
+            ) : mode === 'lipsync' ? (
+              <>
+                {isVeedLipSync ? renderUploadControl('image', 'Foto wajah', 'image/png,image/jpeg,image/webp', false, false, 'Wajib', 'Klik atau drag foto di sini') : renderUploadControl('video', 'Video wajah', 'video/mp4,video/webm,video/quicktime', false, false, 'Wajib', 'Klik atau drag video di sini')}
+                {isVeedLipSync ? renderImagePreview('Foto wajah', imageUrl) : renderVideoPreview('Video wajah', videoUrl)}
+                {renderUploadControl('audio', 'Audio suara', 'audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/x-m4a', false, false, 'Wajib', 'Klik atau drag audio di sini')}
+                <label>
+                  Resolution
+                  <select value={resolution} onChange={(event) => setResolution(event.target.value as GeneratePayload['resolution'])}>
+                    <option value="720p">720p</option>
+                    <option value="480p">480p</option>
+                  </select>
+                </label>
+              </>
             ) : mode === 'image' ? (
               <>
-                {model === 'mystic' && renderUploadControl('image', 'Upload structure reference (opsional)', 'image/png,image/jpeg,image/webp')}
-                {model === 'mystic' && renderImagePreview('Structure reference', imageUrl)}
-                {model === 'mystic' && renderUploadControl('reference', 'Upload style reference (opsional)', 'image/png,image/jpeg,image/webp')}
-                {model === 'mystic' && referenceImageUrls[0] && renderImagePreview('Style reference', referenceImageUrls[0])}
-                {model === 'mystic' && (
-                  <label>
-                    Aspect ratio
-                    <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
-                      <option value="square_1_1">Square 1:1</option>
-                      <option value="social_story_9_16">Story 9:16</option>
-                      <option value="widescreen_16_9">Widescreen 16:9</option>
-                    </select>
-                  </label>
-                )}
+                {renderUploadControl('reference', 'Reference Images', 'image/png,image/jpeg,image/webp', true, true, 'Opsional · max 3', '+ tambah')}
+                {referenceImageUrls.length > 0 && <div className="preview-grid wide" aria-label="Preview reference images">{referenceImageUrls.map((url, index) => renderImagePreview(`Reference ${index + 1}`, url))}</div>}
+                <label>
+                  Aspect ratio
+                  <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
+                    <option value="1:1">1:1</option>
+                    <option value="16:9">16:9</option>
+                    <option value="19:6">19:6</option>
+                    <option value="4:3">4:3</option>
+                    <option value="3:4">3:4</option>
+                  </select>
+                </label>
+                <label>
+                  Resolution
+                  <select value={resolution} onChange={(event) => setResolution(event.target.value as GeneratePayload['resolution'])}>
+                    <option value="1K">1K</option>
+                    <option value="2K">2K</option>
+                    <option value="4K">4K</option>
+                  </select>
+                </label>
               </>
             ) : (
               <>

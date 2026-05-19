@@ -64,12 +64,62 @@ describe('Magnific payload helpers', () => {
     });
   });
 
+  it('maps Kling 3 video generator body with frame images and negative prompt', () => {
+    expect(buildRequestBody('kling-v3-pro', {
+      prompt: ' cinematic cat product reveal ',
+      startImageUrl: 'https://files.example.com/start.png',
+      endImageUrl: 'https://files.example.com/end.png',
+      negativePrompt: 'blur, low quality',
+      aspectRatio: 'social_story_9_16',
+      duration: '12',
+      cfgScale: 0.8,
+    })).toEqual({
+      prompt: 'cinematic cat product reveal',
+      start_image_url: 'https://files.example.com/start.png',
+      end_image_url: 'https://files.example.com/end.png',
+      negative_prompt: 'blur, low quality',
+      aspect_ratio: '9:16',
+      duration: '12',
+      cfg_scale: 0.8,
+    });
+  });
+
+  it('maps voiceover text into ElevenLabs voiceover body', () => {
+    expect(buildRequestBody('elevenlabs-turbo-v2-5', {
+      prompt: ' Halo meowversee ',
+      voiceId: '21m00Tcm4TlvDq8ikWAM',
+      voiceStability: 0.6,
+      voiceSimilarityBoost: 0.3,
+      voiceSpeed: 1.1,
+      useSpeakerBoost: true,
+    })).toEqual({
+      text: 'Halo meowversee',
+      voice_id: '21m00Tcm4TlvDq8ikWAM',
+      stability: 0.6,
+      similarity_boost: 0.3,
+      speed: 1.1,
+      use_speaker_boost: true,
+    });
+  });
+
+  it('maps lip-sync uploads into Veed Fabric body', () => {
+    expect(buildRequestBody('veed-fabric-1-0-fast', {
+      imageUrl: 'https://files.example.com/face.png',
+      audioUrl: 'https://files.example.com/speech.mp3',
+      resolution: '480p',
+    })).toEqual({
+      image_url: 'https://files.example.com/face.png',
+      audio_url: 'https://files.example.com/speech.mp3',
+      resolution: '480p',
+    });
+  });
+
   it('requires motion-control character image and motion video uploads', () => {
     expect(validatePayload('kling-v3-motion-control-std', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
-      'Motion control membutuhkan gambar karakter dari device.',
+      'Motion control membutuhkan gambar referensi dari device.',
     );
     expect(validatePayload('kling-v3-motion-control-std', { imageUrl: 'data:image/png;base64,aaaa', videoUrl: '' })).toBe(
-      'Motion control membutuhkan video gerakan dari device.',
+      'Motion control membutuhkan video referensi dari device.',
     );
   });
 
@@ -201,17 +251,18 @@ describe('Magnific payload helpers', () => {
 });
 
 describe('Magnific mode and model catalog', () => {
-  it('groups studio modes into video, motion control, image generation, and image upscale', () => {
-    expect(getMagnificModelsForMode('video').map((model) => model.id)).toContain('kling-v3-omni-std');
-    expect(getMagnificModelsForMode('motion').map((model) => model.id)).toContain('kling-v3-motion-control-std');
+  it('groups studio modes into video, motion control, voiceover, lip-sync, image generation, and image upscale', () => {
+    expect(getMagnificModelsForMode('video').map((model) => model.id)).toEqual(['kling-v3-pro', 'kling-v3-std']);
+    expect(getMagnificModelsForMode('motion').map((model) => model.id)).toEqual(['kling-v2-6-motion-control-std', 'kling-v2-6-motion-control-pro', 'kling-v3-motion-control-std', 'kling-v3-motion-control-pro']);
+    expect(getMagnificModelsForMode('voice').map((model) => model.id)).toEqual(['elevenlabs-turbo-v2-5']);
+    expect(getMagnificModelsForMode('lipsync').map((model) => model.id)).toEqual(['veed-fabric-1-0-fast', 'veed-fabric-1-0', 'latent-sync']);
     expect(getMagnificModelsForMode('image').map((model) => model.id)).toEqual(expect.arrayContaining(['mystic', 'flux-2-turbo']));
     expect(getMagnificModelsForMode('upscale').map((model) => model.id)).toEqual(expect.arrayContaining(['image-upscaler', 'image-upscaler-precision']));
-    expect(getMagnificModelsForMode('video').map((model) => model.id)).toEqual(expect.arrayContaining(['kling-v2-6-pro', 'kling-v2-5-pro', 'kling-v3-omni-std']));
   });
 
   it('maps selected Magnific model endpoints into request routes', async () => {
     const originalFetch = globalThis.fetch;
-    expect(getDefaultModelForMode('video')).toBe('kling-v2-6-pro');
+    expect(getDefaultModelForMode('video')).toBe('kling-v3-pro');
     const requestedUrls: string[] = [];
     try {
       globalThis.fetch = ((input: RequestInfo | URL) => {
@@ -234,9 +285,11 @@ describe('Magnific mode and model catalog', () => {
   });
 
   it('chooses the first Magnific model available for a mode', () => {
-    expect(getDefaultModelForMode('video')).toBe('kling-v2-6-pro');
-    expect(getDefaultModelForMode('motion')).toBe('kling-v3-motion-control-std');
-    expect(getDefaultModelForMode('image')).toBe('mystic');
+    expect(getDefaultModelForMode('video')).toBe('kling-v3-pro');
+    expect(getDefaultModelForMode('motion')).toBe('kling-v2-6-motion-control-std');
+    expect(getDefaultModelForMode('voice')).toBe('elevenlabs-turbo-v2-5');
+    expect(getDefaultModelForMode('lipsync')).toBe('veed-fabric-1-0-fast');
+    expect(getDefaultModelForMode('image')).toBe('gemini-2-5-flash-image-preview');
     expect(getDefaultModelForMode('upscale')).toBe('image-upscaler');
   });
 });

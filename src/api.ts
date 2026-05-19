@@ -1,10 +1,22 @@
-export type StudioMode = 'video' | 'motion' | 'image' | 'upscale';
+export type StudioMode = 'video' | 'motion' | 'voice' | 'lipsync' | 'image' | 'upscale';
 export type ModelId =
+  | 'kling-v3-pro'
+  | 'kling-v3-std'
   | 'kling-v2-6-pro'
   | 'kling-v2-5-pro'
   | 'wan-v2-6-1080p'
   | 'kling-v3-omni-std'
+  | 'kling-v2-6-motion-control-std'
+  | 'kling-v2-6-motion-control-pro'
   | 'kling-v3-motion-control-std'
+  | 'kling-v3-motion-control-pro'
+  | 'elevenlabs-turbo-v2-5'
+  | 'veed-fabric-1-0-fast'
+  | 'veed-fabric-1-0'
+  | 'latent-sync'
+  | 'gemini-2-5-flash-image-preview'
+  | 'nano-banana-pro'
+  | 'nano-banana-pro-flash'
   | 'mystic'
   | 'flux-2-turbo'
   | 'image-upscaler'
@@ -13,16 +25,24 @@ export type TaskStatus = 'CREATED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
 
 export type GeneratePayload = {
   prompt?: string;
+  negativePrompt?: string;
   imageUrl?: string;
   startImageUrl?: string;
   endImageUrl?: string;
   videoUrl?: string;
+  audioUrl?: string;
   referenceImageUrls?: string[];
-  aspectRatio?: 'auto' | '16:9' | '9:16' | '1:1' | 'square_1_1' | 'social_story_9_16' | 'widescreen_16_9';
+  aspectRatio?: 'auto' | '16:9' | '9:16' | '19:6' | '1:1' | '4:3' | '3:4' | 'square_1_1' | 'social_story_9_16' | 'widescreen_16_9';
+  resolution?: '480p' | '720p' | '1K' | '2K' | '4K';
   duration?: string;
   generateAudio?: boolean;
   characterOrientation?: 'video' | 'image';
   cfgScale?: number;
+  voiceId?: string;
+  voiceStability?: number;
+  voiceSimilarityBoost?: number;
+  voiceSpeed?: number;
+  useSpeakerBoost?: boolean;
   upscaleFactor?: '2x' | '4x' | '8x' | '16x';
   upscaleEngine?: 'automatic' | 'magnific_illusio' | 'magnific_sharpy' | 'magnific_sparkle';
 };
@@ -77,45 +97,103 @@ export type MagnificModel = {
 export const MAGNIFIC_MODE_COPY: Record<StudioMode, { title: string; button: string }> = {
   video: { title: 'Generate video', button: 'Generate video' },
   motion: { title: 'Motion control', button: 'Generate motion' },
+  voice: { title: 'Voice generator', button: 'Generate voice' },
+  lipsync: { title: 'Lip sync', button: 'Generate lip sync' },
   image: { title: 'Generate image', button: 'Generate image' },
   upscale: { title: 'Upscale image', button: 'Upscale image' },
 };
 
 export const MAGNIFIC_MODELS: readonly MagnificModel[] = [
   {
-    id: 'kling-v2-6-pro',
+    id: 'kling-v3-pro',
     mode: 'video',
-    title: 'Kling 2.6 Pro (text / image)',
-    create: '/v1/ai/image-to-video/kling-v2-6-pro',
+    title: 'Kling 3 Pro',
+    create: '/v1/ai/video/kling-v3-pro',
+    status: '/v1/ai/video/kling-v3',
+  },
+  {
+    id: 'kling-v3-std',
+    mode: 'video',
+    title: 'Kling 3 Standard',
+    create: '/v1/ai/video/kling-v3-std',
+    status: '/v1/ai/video/kling-v3',
+  },
+  {
+    id: 'kling-v2-6-motion-control-std',
+    mode: 'motion',
+    title: 'Kling 2.6 Standard',
+    create: '/v1/ai/video/kling-v2-6-motion-control-std',
     status: '/v1/ai/image-to-video/kling-v2-6',
   },
   {
-    id: 'kling-v2-5-pro',
-    mode: 'video',
-    title: 'Kling 2.5 Pro (image)',
-    create: '/v1/ai/image-to-video/kling-v2-5-pro',
-    status: '/v1/ai/image-to-video/kling-v2-5-pro',
-  },
-  {
-    id: 'wan-v2-6-1080p',
-    mode: 'video',
-    title: 'WAN 2.6 1080p (image)',
-    create: '/v1/ai/image-to-video/wan-v2-6-1080p',
-    status: '/v1/ai/image-to-video/wan-v2-6-1080p',
-  },
-  {
-    id: 'kling-v3-omni-std',
-    mode: 'video',
-    title: 'Kling 3 Omni Standard',
-    create: '/v1/ai/video/kling-v3-omni-std',
-    status: '/v1/ai/video/kling-v3-omni',
+    id: 'kling-v2-6-motion-control-pro',
+    mode: 'motion',
+    title: 'Kling 2.6 Pro',
+    create: '/v1/ai/video/kling-v2-6-motion-control-pro',
+    status: '/v1/ai/image-to-video/kling-v2-6',
   },
   {
     id: 'kling-v3-motion-control-std',
     mode: 'motion',
-    title: 'Kling 3 Standard Motion Control',
+    title: 'Kling 3 Standard',
     create: '/v1/ai/video/kling-v3-motion-control-std',
     status: '/v1/ai/video/kling-v3-motion-control-std',
+  },
+  {
+    id: 'kling-v3-motion-control-pro',
+    mode: 'motion',
+    title: 'Kling 3 Pro',
+    create: '/v1/ai/video/kling-v3-motion-control-pro',
+    status: '/v1/ai/video/kling-v3-motion-control-pro',
+  },
+  {
+    id: 'elevenlabs-turbo-v2-5',
+    mode: 'voice',
+    title: 'ElevenLabs Turbo v2.5',
+    create: '/v1/ai/voiceover/elevenlabs-turbo-v2-5',
+    status: '/v1/ai/voiceover/elevenlabs-turbo-v2-5',
+  },
+  {
+    id: 'veed-fabric-1-0-fast',
+    mode: 'lipsync',
+    title: 'Veed Fabric 1.0 Fast',
+    create: '/v1/ai/lip-sync/veed-fabric-1-0-fast',
+    status: '/v1/ai/lip-sync/veed-fabric-1-0-fast',
+  },
+  {
+    id: 'veed-fabric-1-0',
+    mode: 'lipsync',
+    title: 'Veed Fabric 1.0',
+    create: '/v1/ai/lip-sync/veed-fabric-1-0',
+    status: '/v1/ai/lip-sync/veed-fabric-1-0',
+  },
+  {
+    id: 'latent-sync',
+    mode: 'lipsync',
+    title: 'Latent Sync',
+    create: '/v1/ai/lip-sync/latent-sync',
+    status: '/v1/ai/lip-sync/latent-sync',
+  },
+  {
+    id: 'gemini-2-5-flash-image-preview',
+    mode: 'image',
+    title: 'Gemini 2.5 Flash Image Preview',
+    create: '/v1/ai/gemini-2-5-flash-image-preview',
+    status: '/v1/ai/gemini-2-5-flash-image-preview',
+  },
+  {
+    id: 'nano-banana-pro',
+    mode: 'image',
+    title: 'Nano Banana Pro',
+    create: '/v1/ai/text-to-image/nano-banana-pro',
+    status: '/v1/ai/text-to-image/nano-banana-pro',
+  },
+  {
+    id: 'nano-banana-pro-flash',
+    mode: 'image',
+    title: 'Nano Banana Pro Flash',
+    create: '/v1/ai/text-to-image/nano-banana-pro-flash',
+    status: '/v1/ai/text-to-image/nano-banana-pro-flash',
   },
   {
     id: 'mystic',
@@ -147,9 +225,13 @@ export const MAGNIFIC_MODELS: readonly MagnificModel[] = [
   },
 ] as const;
 
-const endpoints: Record<ModelId, { create: string; status: string }> = Object.fromEntries(
-  MAGNIFIC_MODELS.map((model) => [model.id, { create: model.create, status: model.status }]),
-) as Record<ModelId, { create: string; status: string }>;
+const endpoints: Record<ModelId, { create: string; status: string }> = {
+  ...Object.fromEntries(MAGNIFIC_MODELS.map((model) => [model.id, { create: model.create, status: model.status }])),
+  'kling-v2-6-pro': { create: '/v1/ai/image-to-video/kling-v2-6-pro', status: '/v1/ai/image-to-video/kling-v2-6' },
+  'kling-v2-5-pro': { create: '/v1/ai/image-to-video/kling-v2-5-pro', status: '/v1/ai/image-to-video/kling-v2-5-pro' },
+  'wan-v2-6-1080p': { create: '/v1/ai/image-to-video/wan-v2-6-1080p', status: '/v1/ai/image-to-video/wan-v2-6-1080p' },
+  'kling-v3-omni-std': { create: '/v1/ai/video/kling-v3-omni-std', status: '/v1/ai/video/kling-v3-omni' },
+};
 
 export function getMagnificModelsForMode(mode: StudioMode): MagnificModel[] {
   return MAGNIFIC_MODELS.filter((model) => model.mode === mode);
@@ -203,6 +285,26 @@ function writeCachedHistory(items: CachedHistoryItem[]): void {
   window.localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
 }
 
+function isKlingV3VideoModel(model: ModelId): boolean {
+  return model === 'kling-v3-pro' || model === 'kling-v3-std';
+}
+
+function isMotionControlModel(model: ModelId): boolean {
+  return model === 'kling-v2-6-motion-control-std' || model === 'kling-v2-6-motion-control-pro' || model === 'kling-v3-motion-control-std' || model === 'kling-v3-motion-control-pro';
+}
+
+function isVoiceModel(model: ModelId): boolean {
+  return model === 'elevenlabs-turbo-v2-5';
+}
+
+function isLipSyncModel(model: ModelId): boolean {
+  return model === 'veed-fabric-1-0-fast' || model === 'veed-fabric-1-0' || model === 'latent-sync';
+}
+
+function isNanoBananaModel(model: ModelId): boolean {
+  return model === 'nano-banana-pro' || model === 'nano-banana-pro-flash';
+}
+
 function isKlingV26Model(model: ModelId): boolean {
   return model === 'kling-v2-6-pro';
 }
@@ -212,7 +314,7 @@ function isClassicImageToVideoModel(model: ModelId): boolean {
 }
 
 export function buildRequestBody(model: ModelId, payload: GeneratePayload): Record<string, unknown> {
-  if (model === 'kling-v3-motion-control-std') {
+  if (isMotionControlModel(model)) {
     const body: Record<string, unknown> = {
       image_url: payload.imageUrl?.trim(),
       video_url: payload.videoUrl?.trim(),
@@ -222,6 +324,58 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
     if (payload.characterOrientation) body.character_orientation = payload.characterOrientation;
     if (typeof payload.cfgScale === 'number') body.cfg_scale = payload.cfgScale;
 
+    return compact(body);
+  }
+
+  if (isKlingV3VideoModel(model)) {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.startImageUrl?.trim()) body.start_image_url = payload.startImageUrl.trim();
+    if (payload.endImageUrl?.trim()) body.end_image_url = payload.endImageUrl.trim();
+    if (payload.negativePrompt?.trim()) body.negative_prompt = payload.negativePrompt.trim();
+    if (payload.aspectRatio) body.aspect_ratio = toKlingV3AspectRatio(payload.aspectRatio);
+    if (payload.duration) body.duration = toKlingV3Duration(payload.duration);
+    if (typeof payload.cfgScale === 'number') body.cfg_scale = payload.cfgScale;
+    return compact(body);
+  }
+
+  if (isVoiceModel(model)) {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.text = payload.prompt.trim();
+    if (payload.voiceId?.trim()) body.voice_id = payload.voiceId.trim();
+    if (typeof payload.voiceStability === 'number') body.stability = payload.voiceStability;
+    if (typeof payload.voiceSimilarityBoost === 'number') body.similarity_boost = payload.voiceSimilarityBoost;
+    if (typeof payload.voiceSpeed === 'number') body.speed = payload.voiceSpeed;
+    if (typeof payload.useSpeakerBoost === 'boolean') body.use_speaker_boost = payload.useSpeakerBoost;
+    return compact(body);
+  }
+
+  if (isLipSyncModel(model)) {
+    const body: Record<string, unknown> = {
+      video_url: payload.videoUrl?.trim(),
+      audio_url: payload.audioUrl?.trim(),
+    };
+    if (model === 'veed-fabric-1-0-fast' || model === 'veed-fabric-1-0') {
+      body.image_url = payload.imageUrl?.trim();
+      body.resolution = payload.resolution ?? '720p';
+      delete body.video_url;
+    }
+    return compact(body);
+  }
+
+  if (model === 'gemini-2-5-flash-image-preview') {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.referenceImageUrls?.length) body.reference_images = payload.referenceImageUrls.filter((url) => url.trim()).map((url) => stripDataUrlPrefix(url.trim())).slice(0, 3);
+    return compact(body);
+  }
+
+  if (isNanoBananaModel(model)) {
+    const body: Record<string, unknown> = {};
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.referenceImageUrls?.length) body.reference_images = payload.referenceImageUrls.filter((url) => url.trim()).map((url) => ({ image: url.trim() })).slice(0, 3);
+    if (payload.aspectRatio) body.aspect_ratio = toImageAspectRatio(payload.aspectRatio);
+    if (payload.resolution) body.resolution = payload.resolution;
     return compact(body);
   }
 
@@ -286,9 +440,27 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
 }
 
 export function validatePayload(model: ModelId, payload: GeneratePayload): string | null {
-  if (model === 'kling-v3-motion-control-std') {
-    if (!payload.imageUrl?.trim()) return 'Motion control membutuhkan gambar karakter dari device.';
-    if (!payload.videoUrl?.trim()) return 'Motion control membutuhkan video gerakan dari device.';
+  if (isMotionControlModel(model)) {
+    if (!payload.imageUrl?.trim()) return 'Motion control membutuhkan gambar referensi dari device.';
+    if (!payload.videoUrl?.trim()) return 'Motion control membutuhkan video referensi dari device.';
+    return null;
+  }
+
+  if (isKlingV3VideoModel(model)) {
+    if (!payload.prompt?.trim()) return 'Generate video membutuhkan prompt.';
+    return null;
+  }
+
+  if (isVoiceModel(model)) {
+    if (!payload.prompt?.trim()) return 'Voice generator membutuhkan teks.';
+    if (!payload.voiceId?.trim()) return 'Voice generator membutuhkan voice ID.';
+    return null;
+  }
+
+  if (isLipSyncModel(model)) {
+    if (model === 'latent-sync' && !payload.videoUrl?.trim()) return 'Lip sync membutuhkan video dari device.';
+    if ((model === 'veed-fabric-1-0-fast' || model === 'veed-fabric-1-0') && !payload.imageUrl?.trim()) return 'Lip sync membutuhkan foto wajah dari device.';
+    if (!payload.audioUrl?.trim()) return 'Lip sync membutuhkan audio dari device.';
     return null;
   }
 
@@ -297,7 +469,7 @@ export function validatePayload(model: ModelId, payload: GeneratePayload): strin
     return null;
   }
 
-  if (model === 'mystic' || model === 'flux-2-turbo') {
+  if (model === 'mystic' || model === 'flux-2-turbo' || model === 'gemini-2-5-flash-image-preview' || isNanoBananaModel(model)) {
     if (!payload.prompt?.trim()) return 'Generate image membutuhkan prompt.';
     return null;
   }
@@ -489,10 +661,11 @@ async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Prom
   const next: GeneratePayload = { ...payload };
 
   if (usesPublicImageUrl(model) && isDataUrl(next.imageUrl)) next.imageUrl = await uploadDataUrl(next.imageUrl, 'meowversee-image');
-  if (model === 'kling-v3-omni-std' && isDataUrl(next.startImageUrl)) next.startImageUrl = await uploadDataUrl(next.startImageUrl, 'meowversee-start-frame');
-  if (model === 'kling-v3-omni-std' && isDataUrl(next.endImageUrl)) next.endImageUrl = await uploadDataUrl(next.endImageUrl, 'meowversee-end-frame');
-  if (model === 'kling-v3-motion-control-std' && isDataUrl(next.videoUrl)) next.videoUrl = await uploadDataUrl(next.videoUrl, 'meowversee-motion-video');
-  if (model === 'kling-v3-omni-std' && next.referenceImageUrls?.length) {
+  if ((model === 'kling-v3-omni-std' || isKlingV3VideoModel(model)) && isDataUrl(next.startImageUrl)) next.startImageUrl = await uploadDataUrl(next.startImageUrl, 'meowversee-start-frame');
+  if ((model === 'kling-v3-omni-std' || isKlingV3VideoModel(model)) && isDataUrl(next.endImageUrl)) next.endImageUrl = await uploadDataUrl(next.endImageUrl, 'meowversee-end-frame');
+  if ((isMotionControlModel(model) || model === 'latent-sync') && isDataUrl(next.videoUrl)) next.videoUrl = await uploadDataUrl(next.videoUrl, 'meowversee-video');
+  if (isLipSyncModel(model) && isDataUrl(next.audioUrl)) next.audioUrl = await uploadDataUrl(next.audioUrl, 'meowversee-audio');
+  if ((model === 'kling-v3-omni-std' || isNanoBananaModel(model)) && next.referenceImageUrls?.length) {
     next.referenceImageUrls = await Promise.all(next.referenceImageUrls.map((url, index) => isDataUrl(url) ? uploadDataUrl(url, `meowversee-reference-${index + 1}`) : url));
   }
 
@@ -500,7 +673,7 @@ async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Prom
 }
 
 function usesPublicImageUrl(model: ModelId): boolean {
-  return model === 'kling-v3-omni-std' || model === 'kling-v3-motion-control-std' || model === 'wan-v2-6-1080p';
+  return model === 'kling-v3-omni-std' || isMotionControlModel(model) || isKlingV3VideoModel(model) || isLipSyncModel(model) || model === 'wan-v2-6-1080p';
 }
 
 function isDataUrl(value: string | undefined): value is string {
@@ -604,6 +777,20 @@ function toKlingV3AspectRatio(value: GeneratePayload['aspectRatio']): string {
   if (value === 'widescreen_16_9') return '16:9';
   if (value === 'square_1_1') return '1:1';
   if (!value) return '16:9';
+  return value;
+}
+
+function toKlingV3Duration(value: string): string {
+  const duration = Number.parseInt(value, 10);
+  if (!Number.isFinite(duration)) return '5';
+  return String(Math.min(15, Math.max(3, duration)));
+}
+
+function toImageAspectRatio(value: GeneratePayload['aspectRatio']): string {
+  if (value === 'square_1_1') return '1:1';
+  if (value === 'social_story_9_16') return '9:16';
+  if (value === 'widescreen_16_9') return '16:9';
+  if (!value || value === 'auto') return '1:1';
   return value;
 }
 
