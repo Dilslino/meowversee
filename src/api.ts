@@ -83,7 +83,8 @@ const PENDING_GENERATE_MESSAGE = 'Generate yang sama baru saja dikirim dan statu
 const FETCH_FAILURE_MESSAGE = 'Browser tidak bisa menghubungi Magnific API. Ini biasanya karena koneksi, CORS, atau API Magnific menolak request langsung dari browser. Coba lagi; kalau tetap gagal, app perlu backend proxy.';
 const AUTO_POLL_DELAYS_MS = [0, 1000, 3000, 7000, 15000, 30000] as const;
 export const MAX_DEVICE_UPLOAD_BYTES = 18 * 1024 * 1024;
-const MAX_DEVICE_UPLOAD_MB = Math.floor(MAX_DEVICE_UPLOAD_BYTES / (1024 * 1024));
+const MOTION_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MOTION_VIDEO_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 
 export type MagnificModel = {
@@ -660,10 +661,10 @@ async function buildHostedRequestBody(model: ModelId, payload: GeneratePayload):
 async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Promise<GeneratePayload> {
   const next: GeneratePayload = { ...payload };
 
-  if (usesPublicImageUrl(model) && isDataUrl(next.imageUrl)) next.imageUrl = await uploadDataUrl(next.imageUrl, 'meowversee-image');
+  if (usesPublicImageUrl(model) && isDataUrl(next.imageUrl)) next.imageUrl = await uploadDataUrl(next.imageUrl, 'meowversee-image', isMotionControlModel(model) ? MOTION_IMAGE_UPLOAD_BYTES : MAX_DEVICE_UPLOAD_BYTES);
   if ((model === 'kling-v3-omni-std' || isKlingV3VideoModel(model)) && isDataUrl(next.startImageUrl)) next.startImageUrl = await uploadDataUrl(next.startImageUrl, 'meowversee-start-frame');
   if ((model === 'kling-v3-omni-std' || isKlingV3VideoModel(model)) && isDataUrl(next.endImageUrl)) next.endImageUrl = await uploadDataUrl(next.endImageUrl, 'meowversee-end-frame');
-  if ((isMotionControlModel(model) || model === 'latent-sync') && isDataUrl(next.videoUrl)) next.videoUrl = await uploadDataUrl(next.videoUrl, 'meowversee-video');
+  if ((isMotionControlModel(model) || model === 'latent-sync') && isDataUrl(next.videoUrl)) next.videoUrl = await uploadDataUrl(next.videoUrl, 'meowversee-video', isMotionControlModel(model) ? MOTION_VIDEO_UPLOAD_BYTES : MAX_DEVICE_UPLOAD_BYTES);
   if (isLipSyncModel(model) && isDataUrl(next.audioUrl)) next.audioUrl = await uploadDataUrl(next.audioUrl, 'meowversee-audio');
   if ((model === 'kling-v3-omni-std' || isNanoBananaModel(model)) && next.referenceImageUrls?.length) {
     next.referenceImageUrls = await Promise.all(next.referenceImageUrls.map((url, index) => isDataUrl(url) ? uploadDataUrl(url, `meowversee-reference-${index + 1}`) : url));
@@ -680,10 +681,10 @@ function isDataUrl(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().startsWith('data:');
 }
 
-async function uploadDataUrl(dataUrl: string, filename: string): Promise<string> {
+async function uploadDataUrl(dataUrl: string, filename: string, maxBytes = MAX_DEVICE_UPLOAD_BYTES): Promise<string> {
   const byteLength = getDataUrlByteLength(dataUrl);
-  if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video asli dari galeri.');
-  if (byteLength > MAX_DEVICE_UPLOAD_BYTES) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${MAX_DEVICE_UPLOAD_MB} MB agar upload tidak ditolak server.`);
+  if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video/audio asli dari galeri.');
+  if (byteLength > maxBytes) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${formatBytes(maxBytes)} agar upload tidak ditolak server.`);
 
   const formData = new FormData();
   formData.set('file', dataUrlToFile(dataUrl, filename));

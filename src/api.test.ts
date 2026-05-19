@@ -173,6 +173,31 @@ describe('Magnific payload helpers', () => {
     }
   });
 
+  it('allows motion reference videos up to the requested 100 MB limit', async () => {
+    const originalFetch = globalThis.fetch;
+    let uploadCalls = 0;
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === 'https://new.fileditch.com/upload.php') {
+          uploadCalls += 1;
+          return new Response(JSON.stringify({ url: `https://files.example.com/${uploadCalls}` }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ task_id: 'task-motion-large', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const largeVideo = `data:video/mp4;base64,${'A'.repeat(Math.ceil((20 * 1024 * 1024) / 3) * 4)}`;
+      const result = await generateVideo('kling-v3-motion-control-std', {
+        imageUrl: 'https://example.com/cat.png',
+        videoUrl: largeVideo,
+      });
+
+      expect(result.ok).toBe(true);
+      expect(uploadCalls).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('surfaces motion-control upload failures instead of leaving callers waiting', async () => {
     const originalFetch = globalThis.fetch;
     try {
@@ -203,7 +228,7 @@ describe('Magnific payload helpers', () => {
         return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
 
-      const oversizedPayload = `data:video/mp4;base64,${'A'.repeat(Math.ceil((MAX_DEVICE_UPLOAD_BYTES + 1) / 3) * 4)}`;
+      const oversizedPayload = `data:video/mp4;base64,${'A'.repeat(Math.ceil((101 * 1024 * 1024) / 3) * 4)}`;
       const result = await generateVideo('kling-v3-motion-control-std', {
         imageUrl: 'https://example.com/cat.png',
         videoUrl: oversizedPayload,

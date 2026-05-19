@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowRight, Cat, ExternalLink, Film, ImagePlus, Loader2 } from 'lucide-react';
+import { ArrowRight, Cat, Download, Film, ImagePlus, Loader2 } from 'lucide-react';
 import './styles.css';
 import {
   CachedHistoryItem,
@@ -115,6 +115,37 @@ export default function App() {
       reader.addEventListener('error', () => reject(reader.error ?? new Error('Gagal membaca file.')));
       reader.readAsDataURL(file);
     });
+  }
+
+  async function downloadResult(url: string, filename: string) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Download gagal (${response.status}).`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (error) {
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.rel = 'noreferrer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      if (error instanceof Error) setMessage(error.message);
+    }
+  }
+
+  function downloadFilename(itemModel: ModelId, index = 0): string {
+    const kind = getResultKind(itemModel);
+    const extension = kind === 'audio' ? 'mp3' : kind === 'video' ? 'mp4' : 'png';
+    return `meowversee-${itemModel}-${index + 1}.${extension}`;
   }
 
   async function handleGenerate(event: FormEvent<HTMLFormElement>) {
@@ -461,7 +492,7 @@ export default function App() {
                   {model === 'image-upscaler' || model === 'image-upscaler-precision'
                     ? renderUpscaleCompare(getBeforeImageForHistory(model), url)
                     : renderResultPreview(url, model, 'Preview hasil')}
-                  <a href={url} download target="_blank" rel="noreferrer" className="download-button">Download hasil <ExternalLink size={15} /></a>
+                  <button type="button" className="download-button" onClick={() => void downloadResult(url, downloadFilename(model, 0))}>Download hasil <Download size={15} /></button>
                 </div>
               ))}
             </div>
@@ -493,7 +524,7 @@ export default function App() {
                     <span>{MAGNIFIC_MODELS.find((modelItem) => modelItem.id === item.model)?.title ?? item.model}</span>
                     <code>{item.task.task_id}</code>
                     <em>{item.task.status}</em>
-                    {resultUrl && <a href={resultUrl} download target="_blank" rel="noreferrer" className="download-button" onClick={(event) => event.stopPropagation()}>Download</a>}
+                    {resultUrl && <button type="button" className="download-button" onClick={(event) => { event.stopPropagation(); void downloadResult(resultUrl, downloadFilename(item.model, 0)); }}>Download</button>}
                   </button>
                 );
               })}
