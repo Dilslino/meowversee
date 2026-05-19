@@ -9,6 +9,7 @@ import {
   ModelId,
   cacheHistoryItem,
   formatElapsedTime,
+  formatUploadSelection,
   generateVideo,
   getAutoPollDelay,
   getCachedHistory,
@@ -47,6 +48,13 @@ export default function App() {
   const [history, setHistory] = useState<CachedHistoryItem[]>([]);
   const [generationStartedAt, setGenerationStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [uploadCounts, setUploadCounts] = useState<Record<'image' | 'start' | 'end' | 'reference' | 'video', number>>({
+    image: 0,
+    start: 0,
+    end: 0,
+    reference: 0,
+    video: 0,
+  });
 
   useEffect(() => {
     setApiKey(getStoredApiKey());
@@ -73,6 +81,7 @@ export default function App() {
     if (!files?.length) return;
     const urls = await Promise.all(Array.from(files).slice(0, target === 'reference' ? 4 : 1).map(readFileAsDataUrl));
 
+    setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
     if (target === 'image') setImageUrl(urls[0]);
     if (target === 'start') setStartImageUrl(urls[0]);
     if (target === 'end') setEndImageUrl(urls[0]);
@@ -181,6 +190,24 @@ export default function App() {
     );
   }
 
+  function renderUploadControl(
+    target: 'image' | 'start' | 'end' | 'reference' | 'video',
+    label: string,
+    accept: string,
+    multiple = false,
+    wide = false,
+  ) {
+    return (
+      <label className={wide ? 'upload-card wide' : 'upload-card'}>
+        <ImagePlus size={18} aria-hidden="true" />
+        <span className="upload-title">{label}</span>
+        <span className="upload-pill">Pilih dari device</span>
+        <span className="upload-selected">{formatUploadSelection(uploadCounts[target])}</span>
+        <input type="file" accept={accept} multiple={multiple} onChange={(event) => void handleImageUpload(target, event.target.files)} />
+      </label>
+    );
+  }
+
   return (
     <main className="page-shell">
       <section className="hero" aria-labelledby="hero-title">
@@ -247,29 +274,13 @@ export default function App() {
 
             {model === 'omni' ? (
               <>
-                <label className="upload-card">
-                  <ImagePlus size={18} />
-                  Upload image utama
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
-                </label>
+                {renderUploadControl('image', 'Upload image utama', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Image utama', imageUrl)}
-                <label className="upload-card">
-                  <ImagePlus size={18} />
-                  Upload start frame
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('start', event.target.files)} />
-                </label>
+                {renderUploadControl('start', 'Upload start frame', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Start frame', startImageUrl)}
-                <label className="upload-card">
-                  <ImagePlus size={18} />
-                  Upload end frame
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('end', event.target.files)} />
-                </label>
+                {renderUploadControl('end', 'Upload end frame', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('End frame', endImageUrl)}
-                <label className="upload-card wide">
-                  <ImagePlus size={18} />
-                  Foto referensi style / karakter (maks 4)
-                  <input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(event) => void handleImageUpload('reference', event.target.files)} />
-                </label>
+                {renderUploadControl('reference', 'Foto referensi style / karakter (maks 4)', 'image/png,image/jpeg,image/webp', true, true)}
                 {referenceImageUrls.length > 0 && (
                   <div className="preview-grid wide" aria-label="Preview foto referensi">
                     {referenceImageUrls.map((url, index) => renderImagePreview(`Referensi ${index + 1}`, url))}
@@ -300,17 +311,9 @@ export default function App() {
               </>
             ) : (
               <>
-                <label className="upload-card">
-                  <ImagePlus size={18} />
-                  Upload character image
-                  <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
-                </label>
+                {renderUploadControl('image', 'Upload character image', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Character image', imageUrl)}
-                <label className="upload-card">
-                  <ImagePlus size={18} />
-                  Upload motion video
-                  <input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(event) => void handleImageUpload('video', event.target.files)} />
-                </label>
+                {renderUploadControl('video', 'Upload motion video', 'video/mp4,video/webm,video/quicktime')}
                 {renderVideoPreview('Motion video', videoUrl)}
                 <label>
                   Orientasi karakter

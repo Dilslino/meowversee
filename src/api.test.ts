@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { buildRequestBody, cacheHistoryItem, formatElapsedTime, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
+import { buildRequestBody, cacheHistoryItem, formatElapsedTime, formatUploadSelection, getAutoPollDelay, generateVideo, getCachedHistory, getPendingGenerate, getTaskStatus, validatePayload } from './api';
 
 describe('Magnific payload helpers', () => {
   it('maps Kling 3 Omni fields to Magnific API body names', () => {
@@ -180,5 +180,17 @@ describe('Elapsed time formatting', () => {
     expect(formatElapsedTime(60_000)).toBe('1 menit 0 detik');
     expect(formatElapsedTime(125_000)).toBe('2 menit 5 detik');
     expect(formatElapsedTime(3_725_000)).toBe('1 jam 2 menit 5 detik');
+  });
+});
+
+describe('Upload selection labels', () => {
+  it('shows a friendly empty upload state', () => {
+    expect(formatUploadSelection()).toBe('Belum ada file');
+    expect(formatUploadSelection(0)).toBe('Belum ada file');
+  });
+
+  it('shows the selected file count without browser choose-file copy', () => {
+    expect(formatUploadSelection(1)).toBe('1 file dipilih');
+    expect(formatUploadSelection(4)).toBe('4 file dipilih');
   });
 });

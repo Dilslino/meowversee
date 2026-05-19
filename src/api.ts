@@ -176,6 +176,10 @@ export function formatElapsedTime(elapsedMs: number): string {
   return `${seconds} detik`;
 }
 
+export function formatUploadSelection(count = 0): string {
+  return count > 0 ? `${count} file dipilih` : 'Belum ada file';
+}
+
 export async function generateVideo(
   apiKey: string,
   model: ModelId,
