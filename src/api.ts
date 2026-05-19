@@ -138,8 +138,8 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
 
 export function validatePayload(model: ModelId, payload: GeneratePayload): string | null {
   if (model === 'motion') {
-    if (!payload.imageUrl?.trim()) return 'Kling Motion v3 membutuhkan URL gambar karakter.';
-    if (!payload.videoUrl?.trim()) return 'Kling Motion v3 membutuhkan URL video referensi gerakan.';
+    if (!payload.imageUrl?.trim()) return 'Kling Motion v3 membutuhkan gambar karakter dari device.';
+    if (!payload.videoUrl?.trim()) return 'Kling Motion v3 membutuhkan video gerakan dari device.';
     return null;
   }
 

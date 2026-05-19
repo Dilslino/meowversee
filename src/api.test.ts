@@ -24,27 +24,27 @@ describe('Magnific payload helpers', () => {
     });
   });
 
-  it('requires motion-control image and video URLs', () => {
-    expect(validatePayload('motion', { imageUrl: '', videoUrl: 'https://example.com/move.mp4' })).toBe(
-      'Kling Motion v3 membutuhkan URL gambar karakter.',
+  it('requires motion-control character image and motion video uploads', () => {
+    expect(validatePayload('motion', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
+      'Kling Motion v3 membutuhkan gambar karakter dari device.',
     );
-    expect(validatePayload('motion', { imageUrl: 'https://example.com/cat.png', videoUrl: '' })).toBe(
-      'Kling Motion v3 membutuhkan URL video referensi gerakan.',
+    expect(validatePayload('motion', { imageUrl: 'data:image/png;base64,aaaa', videoUrl: '' })).toBe(
+      'Kling Motion v3 membutuhkan video gerakan dari device.',
     );
   });
 
   it('maps Kling Motion v3 fields to Magnific API body names', () => {
     expect(
       buildRequestBody('motion', {
-        imageUrl: 'https://example.com/cat.webp',
-        videoUrl: 'https://example.com/dance.mp4',
+        imageUrl: 'data:image/webp;base64,cat',
+        videoUrl: 'data:video/mp4;base64,dance',
         prompt: 'soft fabric movement',
         characterOrientation: 'image',
         cfgScale: 0.7,
       }),
     ).toEqual({
-      image_url: 'https://example.com/cat.webp',
-      video_url: 'https://example.com/dance.mp4',
+      image_url: 'data:image/webp;base64,cat',
+      video_url: 'data:video/mp4;base64,dance',
       prompt: 'soft fabric movement',
       character_orientation: 'image',
       cfg_scale: 0.7,

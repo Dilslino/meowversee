@@ -77,7 +77,6 @@ button:disabled { cursor: not-allowed; opacity: 0.65; }
 }
 
 .brand-pill,
-.doc-link,
 .cache-note,
 .section-title,
 .video-link {
@@ -100,69 +99,33 @@ button:disabled { cursor: not-allowed; opacity: 0.65; }
 .hero-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
-  align-items: end;
-  margin-top: 32px;
+  place-items: center;
+  min-height: clamp(220px, 48vw, 420px);
+  margin-top: 18px;
 }
 
-.kicker {
-  color: var(--rose-strong);
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
-  margin: 0 0 14px;
-  text-transform: uppercase;
-}
 
 h1 {
   font-family: 'Fraunces', serif;
-  font-size: clamp(2.4rem, 16vw, 4rem);
-  line-height: 0.9;
-  letter-spacing: -0.07em;
+  font-size: clamp(4.2rem, 23vw, 8.8rem);
+  line-height: 0.82;
+  letter-spacing: -0.085em;
   margin: 0;
-  max-width: 760px;
+  max-width: 840px;
 }
 
-.hero-actions {
-  margin-top: 28px;
+.hero-center {
+  text-align: center;
+  max-width: 860px;
 }
 
-.doc-link,
-.video-link {
+
+.video-link,
+.tutorial-card a {
   color: var(--plum);
-  font-weight: 800;
+  font-weight: 900;
   text-decoration: none;
 }
-
-.hero-card {
-  position: relative;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  padding: 22px;
-  background:
-    linear-gradient(155deg, rgba(255, 255, 255, 0.94), rgba(255, 220, 233, 0.82)),
-    var(--blush);
-  box-shadow: 0 18px 44px rgba(142, 73, 104, 0.13);
-}
-
-.hero-spark {
-  color: var(--rose-strong);
-  margin-bottom: 28px;
-}
-
-.hero-card span,
-.muted {
-  color: var(--muted);
-}
-
-.hero-card strong {
-  display: block;
-  font-family: 'Fraunces', serif;
-  font-size: 2rem;
-  margin: 8px 0 12px;
-}
-
-.hero-card p,
 .panel p { line-height: 1.65; }
 
 .workspace {
@@ -327,6 +290,35 @@ select:focus {
   word-break: break-all;
 }
 
+.tutorial-card {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.tutorial-card strong {
+  font-family: 'Fraunces', serif;
+  font-size: 1.05rem;
+}
+
+.tutorial-card ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--plum);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.tutorial-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .result-panel {
   display: grid;
   gap: 14px;
@@ -413,12 +405,11 @@ select:focus {
 @media (min-width: 700px) {
   .page-shell { width: min(100% - 32px, 1180px); padding: 24px 0 52px; }
   .hero { border-radius: 32px; padding: clamp(28px, 4vw, 44px); }
-  .hero-grid { grid-template-columns: minmax(0, 1fr) 320px; margin-top: 40px; }
-  .hero-card { border-radius: 30px; padding: 28px; }
+  .hero-grid { min-height: clamp(320px, 36vw, 500px); margin-top: 30px; }
   .panel { border-radius: 28px; padding: 22px; }
   .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  h1 { font-size: clamp(3.1rem, 8vw, 7.4rem); line-height: 0.88; }
+  h1 { font-size: clamp(6rem, 11vw, 10rem); line-height: 0.78; }
 }
 
 @media (min-width: 1060px) {

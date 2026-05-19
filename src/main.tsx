@@ -1,6 +1,6 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ArrowRight, Cat, CheckCircle2, ExternalLink, Film, ImagePlus, KeyRound, Loader2, Sparkles } from 'lucide-react';
+import { ArrowRight, Cat, CheckCircle2, ExternalLink, Film, ImagePlus, KeyRound, Loader2 } from 'lucide-react';
 import './styles.css';
 import {
   CachedHistoryItem,
@@ -16,17 +16,9 @@ import {
   updateCachedHistoryTask,
 } from './api';
 
-const modelCopy: Record<ModelId, { title: string; eyebrow: string; description: string }> = {
-  omni: {
-    title: 'Kling 3 Omni',
-    eyebrow: 'Text / image to video',
-    description: 'Cocok untuk prompt sinematik, start frame, end frame, aspek rasio, durasi, dan audio native.',
-  },
-  motion: {
-    title: 'Kling Motion v3',
-    eyebrow: 'Motion transfer',
-    description: 'Masukkan gambar karakter dan video referensi untuk memindahkan gerakan ke subjek utama.',
-  },
+const modelCopy: Record<ModelId, { title: string }> = {
+  omni: { title: 'Kling 3 Omni' },
+  motion: { title: 'Kling Motion v3' },
 };
 
 function App() {
@@ -54,9 +46,8 @@ function App() {
     setHistory(getCachedHistory());
   }, []);
 
-  const current = modelCopy[model];
   const maskedKey = useMemo(() => (apiKey ? `${apiKey.slice(0, 6)}••••${apiKey.slice(-4)}` : 'Belum tersimpan'), [apiKey]);
-  const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0);
+  const imagePreviewCount = referenceImageUrls.length + (imageUrl ? 1 : 0) + (startImageUrl ? 1 : 0) + (endImageUrl ? 1 : 0);
 
   function handleKeySave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,13 +56,14 @@ function App() {
     setMessage(apiKey.trim() ? 'API key tersimpan di cache browser.' : 'API key dihapus dari cache browser.');
   }
 
-  async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference', files: FileList | null) {
+  async function handleImageUpload(target: 'image' | 'start' | 'end' | 'reference' | 'video', files: FileList | null) {
     if (!files?.length) return;
     const urls = await Promise.all(Array.from(files).slice(0, target === 'reference' ? 4 : 1).map(readFileAsDataUrl));
 
     if (target === 'image') setImageUrl(urls[0]);
     if (target === 'start') setStartImageUrl(urls[0]);
     if (target === 'end') setEndImageUrl(urls[0]);
+    if (target === 'video') setVideoUrl(urls[0]);
     if (target === 'reference') setReferenceImageUrls(urls.slice(0, 4));
   }
 
@@ -138,20 +130,8 @@ function App() {
       <section className="hero" aria-labelledby="hero-title">
         <div className="brand-pill"><Cat size={18} /> meowversee</div>
         <div className="hero-grid">
-          <div>
-            <p className="kicker">meowversee studio</p>
-            <h1 id="hero-title">Kling video, soft and simple.</h1>
-            <div className="hero-actions">
-              <a className="doc-link" href="https://www.magnific.com/developers/dashboard/limits" target="_blank" rel="noreferrer">
-                API limits <ExternalLink size={16} />
-              </a>
-            </div>
-          </div>
-          <div className="hero-card" aria-label="Ringkasan model aktif">
-            <Sparkles className="hero-spark" size={30} />
-            <span>{current.eyebrow}</span>
-            <strong>{current.title}</strong>
-            <p>{current.description}</p>
+          <div className="hero-center">
+            <h1 id="hero-title">meowversee studio</h1>
           </div>
         </div>
       </section>
@@ -174,6 +154,17 @@ function App() {
             <button type="submit" className="secondary-button">Simpan ke cache</button>
           </form>
           <div className="cache-note"><CheckCircle2 size={18} /> {maskedKey}</div>
+          <div className="tutorial-card" aria-label="Tutorial ambil API key Magnific">
+            <strong>Cara ambil API key</strong>
+            <ol>
+              <li>Buka <a href="https://www.magnific.com/developers/dashboard/limits" target="_blank" rel="noreferrer">halaman API Magnific</a>.</li>
+              <li>Login ke akun Magnific kamu.</li>
+              <li>Masuk ke bagian developer / limits.</li>
+              <li>Copy API key yang muncul di dashboard.</li>
+              <li>Paste di kolom ini, lalu tekan <b>Simpan ke cache</b>.</li>
+            </ol>
+            <p>Key tersimpan hanya di browser device ini. Kalau ganti HP/browser, paste lagi.</p>
+          </div>
         </aside>
 
         <section className="panel generator-panel">
@@ -250,9 +241,10 @@ function App() {
                   Upload character image
                   <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleImageUpload('image', event.target.files)} />
                 </label>
-                <label>
-                  Motion video URL
-                  <input value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} placeholder="https://.../motion.mp4" />
+                <label className="upload-card">
+                  <ImagePlus size={18} />
+                  Upload motion video
+                  <input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={(event) => void handleImageUpload('video', event.target.files)} />
                 </label>
                 <label>
                   Orientasi karakter
