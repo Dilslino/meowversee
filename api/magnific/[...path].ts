@@ -15,9 +15,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  const segments = Array.isArray(request.query.path) ? request.query.path : [String(request.query.path ?? '')];
-  const path = segments.filter(Boolean).map(encodeURIComponent).join('/');
-  const target = new URL(`/${path}`, MAGNIFIC_BASE_URL);
+  const target = buildMagnificTargetUrl(Array.isArray(request.query.path) ? request.query.path : [String(request.query.path ?? '')]);
 
   for (const [key, value] of Object.entries(request.query)) {
     if (key === 'path') continue;
@@ -46,6 +44,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
       message: error instanceof Error ? error.message : 'Magnific proxy gagal menghubungi upstream.',
     });
   }
+}
+
+export function buildMagnificTargetUrl(segments: string[]): URL {
+  const cleanPath = segments
+    .filter(Boolean)
+    .map((segment) => segment.split('/').filter(Boolean).map(encodeURIComponent).join('/'))
+    .join('/');
+
+  return new URL(`/${cleanPath}`, MAGNIFIC_BASE_URL);
 }
 
 function buildHeaders(request: VercelRequest): Headers {
