@@ -54,6 +54,16 @@ describe('Magnific payload helpers', () => {
     });
   });
 
+  it('keeps Kling 3 Omni aspect ratio values compatible with its API', () => {
+    expect(buildRequestBody('kling-v3-omni-std', {
+      prompt: 'cat astronaut',
+      aspectRatio: 'widescreen_16_9',
+      duration: '5',
+    })).toMatchObject({
+      aspect_ratio: '16:9',
+    });
+  });
+
   it('requires motion-control character image and motion video uploads', () => {
     expect(validatePayload('kling-v3-motion-control-std', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
       'Motion control membutuhkan gambar karakter dari device.',
@@ -108,6 +118,27 @@ describe('Magnific payload helpers', () => {
         image_url: 'https://files.example.com/1',
         video_url: 'https://files.example.com/2',
       });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('surfaces motion-control upload failures instead of leaving callers waiting', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ message: 'Upload file gagal.' }), { status: 502 });
+        }
+        return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const result = await generateVideo('kling-v3-motion-control-std', {
+        imageUrl: 'data:image/png;base64,Y2F0',
+        videoUrl: 'data:video/mp4;base64,ZGFuY2U=',
+      });
+
+      expect(result).toEqual({ ok: false, message: 'Upload file gagal.' });
     } finally {
       globalThis.fetch = originalFetch;
     }

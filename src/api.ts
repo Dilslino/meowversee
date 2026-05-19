@@ -276,7 +276,7 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
   if (payload.startImageUrl?.trim()) body.start_image_url = payload.startImageUrl.trim();
   if (payload.endImageUrl?.trim()) body.end_image_url = payload.endImageUrl.trim();
   if (payload.referenceImageUrls?.length) body.image_urls = payload.referenceImageUrls.filter((url) => url.trim()).map((url) => url.trim()).slice(0, 4);
-  if (payload.aspectRatio) body.aspect_ratio = payload.aspectRatio;
+  if (payload.aspectRatio) body.aspect_ratio = toKlingV3AspectRatio(payload.aspectRatio);
   if (payload.duration) body.duration = payload.duration;
   if (typeof payload.generateAudio === 'boolean') body.generate_audio = payload.generateAudio;
 
@@ -344,7 +344,9 @@ export async function generateVideo(
   const validation = validatePayload(model, payload);
   if (validation) return { ok: false, message: validation };
 
-  const body = await buildHostedRequestBody(model, payload);
+  const bodyResult = await buildHostedRequestBody(model, payload);
+  if (!bodyResult.ok) return { ok: false, message: bodyResult.message };
+  const body = bodyResult.data;
   const pending = getPendingGenerate(model, body, now);
   if (pending) return { ok: false, message: PENDING_GENERATE_MESSAGE };
 
@@ -473,8 +475,12 @@ function normalizeGenerateKeyBody(model: ModelId, payloadOrBody: GeneratePayload
   return payloadOrBody;
 }
 
-async function buildHostedRequestBody(model: ModelId, payload: GeneratePayload): Promise<Record<string, unknown>> {
-  return buildRequestBody(model, await hostDeviceUploads(model, payload));
+async function buildHostedRequestBody(model: ModelId, payload: GeneratePayload): Promise<ApiResult<Record<string, unknown>>> {
+  try {
+    return { ok: true, data: buildRequestBody(model, await hostDeviceUploads(model, payload)) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : 'Upload file dari device gagal.' };
+  }
 }
 
 async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Promise<GeneratePayload> {
@@ -554,6 +560,14 @@ function toWanSize(value: GeneratePayload['aspectRatio']): string {
   if (value === '9:16' || value === 'social_story_9_16') return '1080*1920';
   if (value === '1:1' || value === 'square_1_1') return '1440*1440';
   return '1920*1080';
+}
+
+function toKlingV3AspectRatio(value: GeneratePayload['aspectRatio']): string {
+  if (value === 'social_story_9_16') return '9:16';
+  if (value === 'widescreen_16_9') return '16:9';
+  if (value === 'square_1_1') return '1:1';
+  if (!value) return '16:9';
+  return value;
 }
 
 function isFetchFailure(error: unknown): boolean {
