@@ -109,14 +109,13 @@ function App() {
         <div className="brand-pill"><Cat size={18} /> meowversee</div>
         <div className="hero-grid">
           <div>
-            <p className="kicker">Pastel video lab for Magnific API</p>
-            <h1 id="hero-title">Generate video Kling tanpa dashboard yang ribet.</h1>
-            <p className="hero-copy">
-              Simpan API key Magnific di cache browser, pilih Kling 3 Omni atau Kling Motion v3, lalu buat task video dari satu halaman yang ringan dan jelas.
-            </p>
-            <a className="doc-link" href="https://www.magnific.com/developers/dashboard/limits" target="_blank" rel="noreferrer">
-              Buka dashboard limits <ExternalLink size={16} />
-            </a>
+            <p className="kicker">meowversee studio</p>
+            <h1 id="hero-title">Kling video, soft and simple.</h1>
+            <div className="hero-actions">
+              <a className="doc-link" href="https://www.magnific.com/developers/dashboard/limits" target="_blank" rel="noreferrer">
+                API limits <ExternalLink size={16} />
+              </a>
+            </div>
           </div>
           <div className="hero-card" aria-label="Ringkasan model aktif">
             <Sparkles className="hero-spark" size={30} />
