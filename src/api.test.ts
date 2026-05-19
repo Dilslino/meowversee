@@ -146,8 +146,8 @@ describe('Magnific payload helpers', () => {
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
-        if (String(input) === 'https://catbox.moe/user/api.php') {
-          return new Response(`https://files.catbox.moe/${calls.length}.png`, { status: 200 });
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${calls.length}.png` }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-motion', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -159,8 +159,8 @@ describe('Magnific payload helpers', () => {
 
       expect(result.ok).toBe(true);
       expect(calls.map((call) => call.url)).toEqual([
-        'https://catbox.moe/user/api.php',
-        'https://catbox.moe/user/api.php',
+        '/api/upload',
+        '/api/upload',
         '/api/magnific/v1/ai/video/kling-v3-motion-control-std',
       ]);
       expect(calls[2].body).toMatchObject({
@@ -177,9 +177,9 @@ describe('Magnific payload helpers', () => {
     let uploadCalls = 0;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-        if (String(input) === 'https://catbox.moe/user/api.php') {
+        if (String(input) === '/api/upload') {
           uploadCalls += 1;
-          return new Response(`https://files.catbox.moe/${uploadCalls}.mp4`, { status: 200 });
+          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${uploadCalls}.mp4` }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-motion-large', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -201,8 +201,8 @@ describe('Magnific payload helpers', () => {
     const originalFetch = globalThis.fetch;
     try {
       globalThis.fetch = (async (input: RequestInfo | URL) => {
-        if (String(input) === 'https://catbox.moe/user/api.php') {
-          return new Response('Upload file gagal.', { status: 502 });
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ message: 'Upload file gagal.' }), { status: 502 });
         }
         return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -213,6 +213,27 @@ describe('Magnific payload helpers', () => {
       });
 
       expect(result).toEqual({ ok: false, message: 'Upload file gagal.' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('uploads device files through the same-origin upload proxy to avoid browser CORS failures', async () => {
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ url: 'https://files.catbox.moe/motion.png' }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ task_id: 'task-upload-proxy', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const result = await generateVideo('kling-v3-motion-control-pro', {
+        imageUrl: 'data:image/png;base64,Y2F0',
+        videoUrl: 'https://files.example.com/motion.mp4',
+      });
+
+      expect(result.ok).toBe(true);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -270,8 +291,8 @@ describe('Magnific payload helpers', () => {
     try {
       globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
         calls.push({ url: String(input), body: String(input).startsWith('/api/magnific') && init?.body ? JSON.parse(String(init.body)) : init?.body });
-        if (String(input) === 'https://catbox.moe/user/api.php') {
-          return new Response(`https://files.catbox.moe/${calls.length}.png`, { status: 200 });
+        if (String(input) === '/api/upload') {
+          return new Response(JSON.stringify({ url: `https://files.catbox.moe/${calls.length}.png` }), { status: 200 });
         }
         return new Response(JSON.stringify({ task_id: 'task-video', status: 'CREATED' }), { status: 200 });
       }) as typeof fetch;
@@ -283,8 +304,8 @@ describe('Magnific payload helpers', () => {
       });
 
       expect(calls.map((call) => call.url)).toEqual([
-        'https://catbox.moe/user/api.php',
-        'https://catbox.moe/user/api.php',
+        '/api/upload',
+        '/api/upload',
         '/api/magnific/v1/ai/video/kling-v3-omni-std',
       ]);
       expect(calls[2].body).toMatchObject({

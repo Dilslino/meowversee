@@ -31,7 +31,7 @@ const FINAL_STATUSES = new Set<MagnificTask['status']>(['COMPLETED', 'FAILED']);
 export default function App() {
   const [mode, setMode] = useState<StudioMode>('video');
   const [model, setModel] = useState<ModelId>(getDefaultModelForMode('video'));
-  const [prompt, setPrompt] = useState('A tiny white cat astronaut drifts through a pastel pink nebula, cinematic soft light');
+  const [prompt, setPrompt] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [startImageUrl, setStartImageUrl] = useState('');
   const [endImageUrl, setEndImageUrl] = useState('');

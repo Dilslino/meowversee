@@ -702,25 +702,21 @@ function isDataUrl(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().startsWith('data:');
 }
 
-const CATBOX_UPLOAD_URL = 'https://catbox.moe/user/api.php';
 
 async function uploadDataUrl(dataUrl: string, filename: string, maxBytes = MAX_DEVICE_UPLOAD_BYTES): Promise<string> {
   const byteLength = getDataUrlByteLength(dataUrl);
   if (byteLength === null) throw new Error('Upload dari device tidak valid. Pilih file image/video/audio asli dari galeri.');
   if (byteLength > maxBytes) throw new Error(`File dari device terlalu besar (${formatBytes(byteLength)}). Maksimal ${formatBytes(maxBytes)} agar upload tidak ditolak server.`);
 
-  const formData = new FormData();
-  formData.set('reqtype', 'fileupload');
-  formData.set('fileToUpload', dataUrlToFile(dataUrl, filename));
-
-  const response = await fetch(CATBOX_UPLOAD_URL, {
+  const response = await fetch('/api/upload', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dataUrl, filename: buildUploadFilename(filename, mimeTypeFromDataUrl(dataUrl)) }),
   });
-  const text = await response.text();
-  if (!response.ok) throw new Error(extractMessageFromText(text) ?? 'Upload file dari device gagal.');
-  const url = text.trim();
-  if (!isHttpUrl(url)) throw new Error('Upload file tidak mengembalikan URL publik.');
+  const json = await readJson(response);
+  if (!response.ok) throw new Error(extractMessage(json) ?? 'Upload file dari device gagal.');
+  const url = readString(asRecord(json)?.url);
+  if (!url || !isHttpUrl(url)) throw new Error('Upload file tidak mengembalikan URL publik.');
   return url;
 }
 
@@ -732,6 +728,12 @@ function getDataUrlByteLength(dataUrl: string): number | null {
   if (base64.length === 0) return 0;
   const padding = (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0);
   return Math.floor((base64.length * 3) / 4) - padding;
+}
+
+function mimeTypeFromDataUrl(dataUrl: string): string {
+  const commaIndex = dataUrl.indexOf(',');
+  const header = commaIndex >= 0 ? dataUrl.slice(0, commaIndex) : dataUrl;
+  return /^data:([^;,]+)/.exec(header)?.[1] ?? 'application/octet-stream';
 }
 
 function dataUrlToFile(dataUrl: string, filename: string): File {
