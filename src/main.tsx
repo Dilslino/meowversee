@@ -252,9 +252,9 @@ export default function App() {
 
   return (
     <main className="page-shell">
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="brand-pill"><Cat size={18} /> meowversee</div>
-        <div className="hero-grid">
+      <section className="app-card" aria-labelledby="hero-title">
+        <header className="hero">
+          <div className="brand-pill"><Cat size={18} /> meowversee</div>
           <div className="hero-center">
             <h1 id="hero-title">meowversee studio</h1>
             <div className="hero-marquee" aria-label="Catatan hasil AI">
@@ -262,28 +262,26 @@ export default function App() {
               <span aria-hidden="true">• Hasil mungkin bervariasi tergantung prompt, kualitas gambar, model yang dipilih •</span>
             </div>
           </div>
-        </div>
-      </section>
+        </header>
 
-      <section className="workspace" aria-label="Generator video">
+        <nav className="tabs" role="tablist" aria-label="Pilih fitur Magnific">
+          {modeOrder.map((item) => (
+            <button
+              key={item}
+              type="button"
+              role="tab"
+              aria-selected={mode === item}
+              className={mode === item ? 'tab active' : 'tab'}
+              onClick={() => handleModeChange(item)}
+            >
+              {MAGNIFIC_MODE_COPY[item].title}
+            </button>
+          ))}
+        </nav>
 
-        <section className="panel generator-panel">
-          <div className="tabs" role="tablist" aria-label="Pilih fitur Magnific">
-            {modeOrder.map((item) => (
-              <button
-                key={item}
-                type="button"
-                role="tab"
-                aria-selected={mode === item}
-                className={mode === item ? 'tab active' : 'tab'}
-                onClick={() => handleModeChange(item)}
-              >
-                {MAGNIFIC_MODE_COPY[item].title}
-              </button>
-            ))}
-          </div>
-
-          <label className="wide">
+        <section className="workspace" aria-label="Generator video">
+          <section className="panel generator-panel">
+            <label className="wide">
             Model AI Magnific
             <select value={model} onChange={(event) => setModel(event.target.value as ModelId)}>
               {availableModels.map((item) => (
@@ -478,7 +476,8 @@ export default function App() {
               })}
             </div>
           )}
-        </aside>
+          </aside>
+        </section>
       </section>
     </main>
   );
