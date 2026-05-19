@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/magnific/:path*",
+      "destination": "/api/magnific/[...path]"
+    }
+  ]
+}
