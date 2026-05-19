@@ -123,9 +123,9 @@ describe('Magnific payload helpers', () => {
     );
   });
 
-  it('maps Kling Motion v3 fields to Magnific API body names', () => {
+  it('maps Kling Motion v3 fields to the minimal provider-safe API body', () => {
     expect(
-      buildRequestBody('kling-v3-motion-control-std', {
+      buildRequestBody('kling-v3-motion-control-pro', {
         imageUrl: 'data:image/webp;base64,cat',
         videoUrl: 'data:video/mp4;base64,dance',
         prompt: 'soft fabric movement',
@@ -137,7 +137,6 @@ describe('Magnific payload helpers', () => {
       video_url: 'data:video/mp4;base64,dance',
       prompt: 'soft fabric movement',
       character_orientation: 'image',
-      cfg_scale: 0.7,
     });
   });
 
@@ -214,6 +213,29 @@ describe('Magnific payload helpers', () => {
       });
 
       expect(result).toEqual({ ok: false, message: 'Upload file gagal.' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('blocks motion character images above Magnific documented 10 MB limit', async () => {
+    const originalFetch = globalThis.fetch;
+    let called = false;
+    try {
+      globalThis.fetch = (async () => {
+        called = true;
+        return new Response(JSON.stringify({ task_id: 'unexpected', status: 'CREATED' }), { status: 200 });
+      }) as typeof fetch;
+
+      const oversizedImage = `data:image/png;base64,${'A'.repeat(Math.ceil((11 * 1024 * 1024) / 3) * 4)}`;
+      const result = await generateVideo('kling-v3-motion-control-pro', {
+        imageUrl: oversizedImage,
+        videoUrl: 'https://example.com/motion.mp4',
+      });
+
+      expect(called).toBe(false);
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('10.0 MB');
     } finally {
       globalThis.fetch = originalFetch;
     }

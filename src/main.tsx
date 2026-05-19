@@ -377,7 +377,7 @@ export default function App() {
               </>
             ) : mode === 'motion' ? (
               <>
-                {renderUploadControl('image', 'Gambar Referensi', 'image/png,image/jpeg,image/webp', false, false, 'Wajib — maks 15 MB', 'Klik atau drag gambar di sini')}
+                {renderUploadControl('image', 'Gambar Referensi', 'image/png,image/jpeg,image/webp', false, false, 'Wajib — maks 10 MB', 'Klik atau drag gambar di sini')}
                 {renderImagePreview('Gambar Referensi', imageUrl)}
                 {renderUploadControl('video', 'Video Referensi', 'video/mp4,video/webm,video/quicktime', false, false, 'Wajib — maks 100 MB', 'Klik atau drag video di sini')}
                 {renderVideoPreview('Video Referensi', videoUrl)}
@@ -388,10 +388,6 @@ export default function App() {
                     <option value="video">Ikuti video</option>
                     <option value="image">Ikuti gambar</option>
                   </select>
-                </label>
-                <label>
-                  CFG scale: {cfgScale.toFixed(1)}
-                  <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
                 </label>
               </>
             ) : mode === 'voice' ? (
