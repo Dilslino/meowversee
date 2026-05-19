@@ -1,5 +1,8 @@
 export type StudioMode = 'video' | 'motion' | 'image' | 'upscale';
 export type ModelId =
+  | 'kling-v2-6-pro'
+  | 'kling-v2-5-pro'
+  | 'wan-v2-6-1080p'
   | 'kling-v3-omni-std'
   | 'kling-v3-motion-control-std'
   | 'mystic'
@@ -77,6 +80,27 @@ export const MAGNIFIC_MODE_COPY: Record<StudioMode, { title: string; button: str
 };
 
 export const MAGNIFIC_MODELS: readonly MagnificModel[] = [
+  {
+    id: 'kling-v2-6-pro',
+    mode: 'video',
+    title: 'Kling 2.6 Pro (text / image)',
+    create: '/v1/ai/image-to-video/kling-v2-6-pro',
+    status: '/v1/ai/image-to-video/kling-v2-6',
+  },
+  {
+    id: 'kling-v2-5-pro',
+    mode: 'video',
+    title: 'Kling 2.5 Pro (image)',
+    create: '/v1/ai/image-to-video/kling-v2-5-pro',
+    status: '/v1/ai/image-to-video/kling-v2-5-pro',
+  },
+  {
+    id: 'wan-v2-6-1080p',
+    mode: 'video',
+    title: 'WAN 2.6 1080p (image)',
+    create: '/v1/ai/image-to-video/wan-v2-6-1080p',
+    status: '/v1/ai/image-to-video/wan-v2-6-1080p',
+  },
   {
     id: 'kling-v3-omni-std',
     mode: 'video',
@@ -177,6 +201,14 @@ function writeCachedHistory(items: CachedHistoryItem[]): void {
   window.localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
 }
 
+function isKlingV26Model(model: ModelId): boolean {
+  return model === 'kling-v2-6-pro';
+}
+
+function isClassicImageToVideoModel(model: ModelId): boolean {
+  return model === 'kling-v2-5-pro' || model === 'wan-v2-6-1080p';
+}
+
 export function buildRequestBody(model: ModelId, payload: GeneratePayload): Record<string, unknown> {
   if (model === 'kling-v3-motion-control-std') {
     const body: Record<string, unknown> = {
@@ -217,6 +249,27 @@ export function buildRequestBody(model: ModelId, payload: GeneratePayload): Reco
     return compact(body);
   }
 
+  if (isKlingV26Model(model)) {
+    const body: Record<string, unknown> = {};
+    if (payload.imageUrl?.trim()) body.image = stripDataUrlPrefix(payload.imageUrl.trim());
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.duration) body.duration = toKlingV26Duration(payload.duration);
+    if (payload.aspectRatio) body.aspect_ratio = toKlingV26AspectRatio(payload.aspectRatio);
+    if (typeof payload.generateAudio === 'boolean') body.generate_audio = payload.generateAudio;
+    if (typeof payload.cfgScale === 'number') body.cfg_scale = payload.cfgScale;
+    return compact(body);
+  }
+
+  if (isClassicImageToVideoModel(model)) {
+    const body: Record<string, unknown> = {};
+    if (payload.imageUrl?.trim()) body.image = usesPublicImageUrl(model) ? payload.imageUrl.trim() : stripDataUrlPrefix(payload.imageUrl.trim());
+    if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
+    if (payload.duration) body.duration = model === 'wan-v2-6-1080p' ? toWanDuration(payload.duration) : toKlingV26Duration(payload.duration);
+    if (model === 'wan-v2-6-1080p' && payload.aspectRatio) body.size = toWanSize(payload.aspectRatio);
+    if (typeof payload.cfgScale === 'number' && model === 'kling-v2-5-pro') body.cfg_scale = payload.cfgScale;
+    return compact(body);
+  }
+
   const body: Record<string, unknown> = {};
   if (payload.prompt?.trim()) body.prompt = payload.prompt.trim();
   if (payload.imageUrl?.trim()) body.image_url = payload.imageUrl.trim();
@@ -244,6 +297,16 @@ export function validatePayload(model: ModelId, payload: GeneratePayload): strin
 
   if (model === 'mystic' || model === 'flux-2-turbo') {
     if (!payload.prompt?.trim()) return 'Generate image membutuhkan prompt.';
+    return null;
+  }
+
+  if (isKlingV26Model(model)) {
+    if (!payload.prompt?.trim() && !payload.imageUrl?.trim()) return 'Kling 2.6 membutuhkan prompt untuk text-to-video atau image untuk image-to-video.';
+    return null;
+  }
+
+  if (isClassicImageToVideoModel(model)) {
+    if (!payload.imageUrl?.trim()) return 'Image-to-video membutuhkan gambar utama dari device.';
     return null;
   }
 
@@ -429,7 +492,7 @@ async function hostDeviceUploads(model: ModelId, payload: GeneratePayload): Prom
 }
 
 function usesPublicImageUrl(model: ModelId): boolean {
-  return model === 'kling-v3-omni-std' || model === 'kling-v3-motion-control-std';
+  return model === 'kling-v3-omni-std' || model === 'kling-v3-motion-control-std' || model === 'wan-v2-6-1080p';
 }
 
 function isDataUrl(value: string | undefined): value is string {
@@ -468,6 +531,29 @@ function toMysticAspectRatio(value: GeneratePayload['aspectRatio']): string {
   if (value === '1:1') return 'square_1_1';
   if (!value || value === 'auto') return 'square_1_1';
   return value;
+}
+
+function toKlingV26AspectRatio(value: GeneratePayload['aspectRatio']): string {
+  if (value === '9:16') return 'social_story_9_16';
+  if (value === '16:9') return 'widescreen_16_9';
+  if (value === '1:1') return 'square_1_1';
+  if (!value || value === 'auto') return 'widescreen_16_9';
+  if (value === 'square_1_1' || value === 'social_story_9_16' || value === 'widescreen_16_9') return value;
+  return 'widescreen_16_9';
+}
+
+function toKlingV26Duration(value: string): string {
+  return value === '10' ? '10' : '5';
+}
+
+function toWanDuration(value: string): string {
+  return value === '10' || value === '15' ? value : '5';
+}
+
+function toWanSize(value: GeneratePayload['aspectRatio']): string {
+  if (value === '9:16' || value === 'social_story_9_16') return '1080*1920';
+  if (value === '1:1' || value === 'square_1_1') return '1440*1440';
+  return '1920*1080';
 }
 
 function isFetchFailure(error: unknown): boolean {

@@ -24,6 +24,36 @@ describe('Magnific payload helpers', () => {
     });
   });
 
+  it('maps Kling 2.6 Pro text-to-video body', () => {
+    expect(buildRequestBody('kling-v2-6-pro', {
+      prompt: 'pink product cinematic turntable',
+      duration: '10',
+      aspectRatio: 'social_story_9_16',
+      generateAudio: true,
+      cfgScale: 0.6,
+    })).toEqual({
+      prompt: 'pink product cinematic turntable',
+      duration: '10',
+      aspect_ratio: 'social_story_9_16',
+      generate_audio: true,
+      cfg_scale: 0.6,
+    });
+  });
+
+  it('maps Kling 2.6 Pro image-to-video body using base64 image field', () => {
+    expect(buildRequestBody('kling-v2-6-pro', {
+      prompt: 'soft camera push in',
+      imageUrl: 'data:image/png;base64,Y2F0',
+      duration: '5',
+      aspectRatio: 'widescreen_16_9',
+    })).toEqual({
+      image: 'Y2F0',
+      prompt: 'soft camera push in',
+      duration: '5',
+      aspect_ratio: 'widescreen_16_9',
+    });
+  });
+
   it('requires motion-control character image and motion video uploads', () => {
     expect(validatePayload('kling-v3-motion-control-std', { imageUrl: '', videoUrl: 'data:video/mp4;base64,aaaa' })).toBe(
       'Motion control membutuhkan gambar karakter dari device.',
@@ -122,10 +152,12 @@ describe('Magnific mode and model catalog', () => {
     expect(getMagnificModelsForMode('motion').map((model) => model.id)).toContain('kling-v3-motion-control-std');
     expect(getMagnificModelsForMode('image').map((model) => model.id)).toEqual(expect.arrayContaining(['mystic', 'flux-2-turbo']));
     expect(getMagnificModelsForMode('upscale').map((model) => model.id)).toEqual(expect.arrayContaining(['image-upscaler', 'image-upscaler-precision']));
+    expect(getMagnificModelsForMode('video').map((model) => model.id)).toEqual(expect.arrayContaining(['kling-v2-6-pro', 'kling-v2-5-pro', 'kling-v3-omni-std']));
   });
 
   it('maps selected Magnific model endpoints into request routes', async () => {
     const originalFetch = globalThis.fetch;
+    expect(getDefaultModelForMode('video')).toBe('kling-v2-6-pro');
     const requestedUrls: string[] = [];
     try {
       globalThis.fetch = ((input: RequestInfo | URL) => {
@@ -148,7 +180,7 @@ describe('Magnific mode and model catalog', () => {
   });
 
   it('chooses the first Magnific model available for a mode', () => {
-    expect(getDefaultModelForMode('video')).toBe('kling-v3-omni-std');
+    expect(getDefaultModelForMode('video')).toBe('kling-v2-6-pro');
     expect(getDefaultModelForMode('motion')).toBe('kling-v3-motion-control-std');
     expect(getDefaultModelForMode('image')).toBe('mystic');
     expect(getDefaultModelForMode('upscale')).toBe('image-upscaler');

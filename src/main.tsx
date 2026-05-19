@@ -72,6 +72,9 @@ export default function App() {
   const availableModels = getMagnificModelsForMode(mode);
   const selectedModeCopy = MAGNIFIC_MODE_COPY[mode];
 
+  const isKlingV26 = model === 'kling-v2-6-pro';
+  const isClassicImageToVideo = model === 'kling-v2-5-pro' || model === 'wan-v2-6-1080p';
+  const isKlingOmni = model === 'kling-v3-omni-std';
   function handleModeChange(nextMode: StudioMode) {
     setMode(nextMode);
     setModel(getDefaultModelForMode(nextMode));
@@ -198,7 +201,7 @@ export default function App() {
   }
 
   function getResultKind(itemModel: ModelId): 'video' | 'image' {
-    return itemModel === 'kling-v3-omni-std' || itemModel === 'kling-v3-motion-control-std' ? 'video' : 'image';
+    return itemModel === 'kling-v3-omni-std' || itemModel === 'kling-v3-motion-control-std' || itemModel === 'kling-v2-6-pro' || itemModel === 'kling-v2-5-pro' || itemModel === 'wan-v2-6-1080p' ? 'video' : 'image';
   }
 
   function getBeforeImageForHistory(itemModel: ModelId): string {
@@ -290,40 +293,59 @@ export default function App() {
 
             {mode === 'video' ? (
               <>
-                {renderUploadControl('image', 'Upload image utama', 'image/png,image/jpeg,image/webp')}
+                <div className="mode-hint wide">
+                  {isKlingV26
+                    ? 'Kling 2.6 Pro paling aman untuk text-to-video dan image-to-video. Isi prompt saja untuk text-to-video, atau upload image utama untuk image-to-video.'
+                    : isClassicImageToVideo
+                      ? 'Model ini image-to-video: upload image utama, lalu tulis gerakan/camera move di prompt.'
+                      : 'Kling 3 Omni tetap tersedia untuk video advanced dengan start/end frame dan referensi.'}
+                </div>
+                {renderUploadControl('image', isKlingV26 ? 'Upload image utama (opsional)' : 'Upload image utama', 'image/png,image/jpeg,image/webp')}
                 {renderImagePreview('Image utama', imageUrl)}
-                {renderUploadControl('start', 'Upload start frame', 'image/png,image/jpeg,image/webp')}
-                {renderImagePreview('Start frame', startImageUrl)}
-                {renderUploadControl('end', 'Upload end frame', 'image/png,image/jpeg,image/webp')}
-                {renderImagePreview('End frame', endImageUrl)}
-                {renderUploadControl('reference', 'Foto referensi style / karakter (maks 4)', 'image/png,image/jpeg,image/webp', true, true)}
-                {referenceImageUrls.length > 0 && (
-                  <div className="preview-grid wide" aria-label="Preview foto referensi">
-                    {referenceImageUrls.map((url, index) => renderImagePreview(`Referensi ${index + 1}`, url))}
-                  </div>
+                {isKlingOmni && (
+                  <>
+                    {renderUploadControl('start', 'Upload start frame', 'image/png,image/jpeg,image/webp')}
+                    {renderImagePreview('Start frame', startImageUrl)}
+                    {renderUploadControl('end', 'Upload end frame', 'image/png,image/jpeg,image/webp')}
+                    {renderImagePreview('End frame', endImageUrl)}
+                    {renderUploadControl('reference', 'Foto referensi style / karakter (maks 4)', 'image/png,image/jpeg,image/webp', true, true)}
+                    {referenceImageUrls.length > 0 && (
+                      <div className="preview-grid wide" aria-label="Preview foto referensi">
+                        {referenceImageUrls.map((url, index) => renderImagePreview(`Referensi ${index + 1}`, url))}
+                      </div>
+                    )}
+                    <div className="upload-note wide">{imagePreviewCount} image siap dipakai dari device.</div>
+                  </>
                 )}
-                <div className="upload-note wide">{imagePreviewCount} image siap dipakai dari device.</div>
                 <label>
                   Aspect ratio
                   <select value={aspectRatio} onChange={(event) => setAspectRatio(event.target.value as GeneratePayload['aspectRatio'])}>
-                    <option value="16:9">16:9 Landscape</option>
-                    <option value="9:16">9:16 Portrait</option>
-                    <option value="1:1">1:1 Square</option>
-                    <option value="auto">Auto</option>
+                    <option value="widescreen_16_9">16:9 Landscape</option>
+                    <option value="social_story_9_16">9:16 Portrait</option>
+                    <option value="square_1_1">1:1 Square</option>
+                    {isKlingOmni && <option value="auto">Auto</option>}
                   </select>
                 </label>
                 <label>
                   Durasi
                   <select value={duration} onChange={(event) => setDuration(event.target.value)}>
-                    {Array.from({ length: 13 }, (_, index) => String(index + 3)).map((item) => (
+                    {(model === 'wan-v2-6-1080p' ? ['5', '10', '15'] : isKlingOmni ? Array.from({ length: 13 }, (_, index) => String(index + 3)) : ['5', '10']).map((item) => (
                       <option key={item} value={item}>{item} detik</option>
                     ))}
                   </select>
                 </label>
-                <label className="switch-row">
-                  <input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} />
-                  Generate audio native
-                </label>
+                {(isKlingV26 || isKlingOmni) && (
+                  <label className="switch-row">
+                    <input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} />
+                    Generate audio native
+                  </label>
+                )}
+                {(isKlingV26 || model === 'kling-v2-5-pro') && (
+                  <label>
+                    CFG scale: {cfgScale.toFixed(1)}
+                    <input type="range" min="0" max="1" step="0.1" value={cfgScale} onChange={(event) => setCfgScale(Number(event.target.value))} />
+                  </label>
+                )}
               </>
             ) : mode === 'motion' ? (
               <>
