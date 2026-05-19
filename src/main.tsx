@@ -108,6 +108,23 @@ export default function App() {
       return;
     }
 
+    if (mode === 'motion' && target === 'image') {
+      const reason = await validateMotionImage(selectedFiles[0]);
+      if (reason) {
+        setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
+        setMessage(reason);
+        return;
+      }
+    }
+    if (mode === 'motion' && target === 'video') {
+      const reason = await validateMotionVideo(selectedFiles[0]);
+      if (reason) {
+        setUploadCounts((counts) => ({ ...counts, [target]: files.length }));
+        setMessage(reason);
+        return;
+      }
+    }
+
     const urls = await Promise.all(selectedFiles.map(readFileAsDataUrl));
 
     setMessage('');
@@ -118,6 +135,84 @@ export default function App() {
     if (target === 'video') setVideoUrl(urls[0]);
     if (target === 'audio') setAudioUrl(urls[0]);
     if (target === 'reference') setReferenceImageUrls(urls.slice(0, maxFiles));
+  }
+
+  async function validateMotionImage(file: File): Promise<string | null> {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) return 'Gambar Referensi harus JPG/PNG/WEBP sesuai persyaratan Magnific.';
+    try {
+      const dimensions = await readImageDimensions(file);
+      if (dimensions.width < 300 || dimensions.height < 300) {
+        return `Gambar Referensi terlalu kecil (${dimensions.width}x${dimensions.height}). Magnific minta minimal 300x300 piksel.`;
+      }
+      const ratio = dimensions.width / dimensions.height;
+      if (ratio < 1 / 2.5 || ratio > 2.5) {
+        return 'Aspect ratio Gambar Referensi di luar 1:2.5 sampai 2.5:1. Magnific akan menolak gambarnya.';
+      }
+      return null;
+    } catch {
+      return 'Gambar Referensi tidak bisa dibaca. Pakai file JPG/PNG/WEBP yang valid.';
+    }
+  }
+
+  async function validateMotionVideo(file: File): Promise<string | null> {
+    const allowed = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v'];
+    if (!allowed.includes(file.type)) return 'Video Referensi harus MP4/MOV/WEBM/M4V sesuai persyaratan Magnific.';
+    try {
+      const duration = await readVideoDuration(file);
+      if (!Number.isFinite(duration)) return 'Durasi Video Referensi tidak terbaca. Pakai file MP4/MOV/WEBM/M4V yang valid.';
+      if (duration < 3) return `Video Referensi terlalu pendek (${duration.toFixed(1)} detik). Magnific minta minimal 3 detik.`;
+      if (duration > 30) return `Video Referensi terlalu panjang (${duration.toFixed(1)} detik). Magnific minta maksimal 30 detik.`;
+      return null;
+    } catch {
+      return 'Video Referensi tidak bisa dibaca. Pakai file MP4/MOV/WEBM/M4V yang valid.';
+    }
+  }
+
+  function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        const result = { width: image.naturalWidth, height: image.naturalHeight };
+        URL.revokeObjectURL(objectUrl);
+        resolve(result);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('image load failed'));
+      };
+      image.src = objectUrl;
+    });
+  }
+
+  function readVideoDuration(file: File): Promise<number> {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        const duration = video.duration;
+        URL.revokeObjectURL(objectUrl);
+        resolve(duration);
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('video metadata failed'));
+      };
+      video.src = objectUrl;
+    });
+  }
+
+  function motionFailureMessage(): string {
+    if (mode !== 'motion') return 'Generate gagal di Magnific. Coba lagi nanti atau pakai file lain.';
+    return [
+      'Generate Motion Control gagal di Magnific.',
+      'Cek file referensi:',
+      '• Gambar wajah jelas, format JPG/PNG/WEBP, minimal 300x300 piksel, aspect ratio antara 1:2.5 sampai 2.5:1, maksimal 10 MB.',
+      '• Video MP4/MOV/WEBM/M4V, durasi 3-30 detik, gerakan jelas, maksimal 100 MB.',
+      'Coba ganti salah satu file lalu generate ulang.',
+    ].join(' ');
   }
 
   function getUploadLimitBytes(target: 'image' | 'start' | 'end' | 'reference' | 'video' | 'audio'): number {
@@ -250,7 +345,11 @@ export default function App() {
       }
 
       if (FINAL_STATUSES.has(result.data.status)) {
-        setMessage(result.data.status === 'FAILED' ? 'Generate gagal di Magnific. Limit tidak akan diklik ulang otomatis.' : 'Video selesai, tapi URL hasil belum dikirim Magnific.');
+        if (result.data.status === 'FAILED') {
+          setMessage(motionFailureMessage());
+        } else {
+          setMessage('Video selesai, tapi URL hasil belum dikirim Magnific.');
+        }
         return;
       }
 
